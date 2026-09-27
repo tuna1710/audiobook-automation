@@ -1,0 +1,71 @@
+# Environment Variables & Secrets (BẢO VỆ TUYỆT ĐỐI KHÓA API & TOKEN)
+.env
+.env.local
+.env.*.local
+*.env
+
+# Google & YouTube OAuth Credentials (KHÔNG BAO GIỜ COMMIT LÊN GITHUB)
+client_secrets.json
+client_secret*.json
+youtube_token.json
+token.json
+credentials.json
+*.pem
+*.key
+
+# Output & Temporary Directories (Tránh đẩy video nặng gigabyte lên repo)
+outputs/
+temp_work/
+*.mp4
+*.wav
+*.mp3
+*.aac
+*.srt
+*.jpg
+*.png
+*.jpeg
+
+# Python Bytecode & Cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environments
+venv/
+.venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# Jupyter & Colab Checkpoints
+.ipynb_checkpoints
+*/.ipynb_checkpoints/*
+
+# IDEs & System files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
