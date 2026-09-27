@@ -1,7 +1,7 @@
 # 🎙️ Audiobook Automation AI Studio (V19.7)
 
 <p align="center">
-  <a href="https://colab.research.google.com/github/"><img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"></a>
+  <a href="https://colab.research.google.com/github/tuna1710/audiobook-automation/blob/main/notebooks/Colab_Launcher.ipynb"><img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"></a>
   <a href="https://github.com/"><img src="https://img.shields.io/badge/Awesome-Audiobook-green?logo=github" alt="Awesome Audiobook"></a>
   <a href="https://huggingface.co/pnnbao-ump/VieNeu-TTS-v3-Turbo"><img src="https://img.shields.io/badge/%F0%9F%A4%97%20VieNeu--TTS-v3--Turbo-red" alt="VieNeu-TTS v3 Turbo"></a>
   <a href="https://pytorch.org/"><img src="https://img.shields.io/badge/PyTorch-2.0%2B-ee4c2c?logo=pytorch&logoColor=white" alt="PyTorch"></a>
