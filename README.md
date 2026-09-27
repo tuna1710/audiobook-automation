@@ -8,6 +8,7 @@
   <a href="https://gradio.app/"><img src="https://img.shields.io/badge/Gradio-Web%20Studio-orange?logo=gradio&logoColor=white" alt="Gradio"></a>
   <a href="https://ffmpeg.org/"><img src="https://img.shields.io/badge/FFmpeg-Cinematic%20Engine-007808?logo=ffmpeg&logoColor=white" alt="FFmpeg"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License MIT"></a>
+  <a href="#donation"><img src="https://img.shields.io/badge/Donate-VietinBank%20QR-blue?logo=cashapp&logoColor=white" alt="Donate VietinBank"></a>
 </p>
 
 <p align="center">
@@ -66,7 +67,8 @@
    - [Chế độ dòng lệnh không cần giao diện (Headless CLI)](#cli)
 6. [🔒 Tiêu Chuẩn Bảo Mật (Zero-Leak Security)](#bao-mat)
 7. [🗺️ Lộ Trình Phát Triển (Roadmap)](#roadmap)
-8. [📑 Bản Quyền & Tri Ân (Credits & License)](#license)
+8. [☕ Ủng Hộ Phát Triển (Support & Donation)](#donation)
+9. [📑 Bản Quyền & Tri Ân (Credits & License)](#license)
 
 ---
 
@@ -279,7 +281,23 @@ Dự án tuân thủ nghiêm ngặt tiêu chuẩn an ninh mã nguồn:
 
 ---
 
-## 📑 8. Bản Quyền & Tri Ân (Credits & License) <a name="license"></a>
+## ☕ 8. Ủng Hộ Phát Triển (Support & Donation) <a name="donation"></a>
+
+> [!NOTE]
+> Dự án **Audiobook Automation AI Studio** được phát triển và duy trì hoàn toàn phi lợi nhuận vì cộng đồng sáng tạo nội dung.  
+> Nếu công cụ này giúp ích cho công việc sản xuất nội dung của bạn, giúp tiết kiệm thời gian dựng phim mỗi ngày hoặc giúp kênh của bạn phát triển, bạn có thể **mời tác giả một ly cà phê ☕** hoặc đóng góp một phần chi phí duy trì máy chủ GPU để cùng nhau hoàn thiện dự án ngày càng xịn xò hơn!
+
+<div align=center>
+
+| Chuyển Khoản Nhanh VietQR (Việt Nam) | Thông Tin Tài Khoản Ngân Hàng |
+| :---: | :--- |
+| <img src="assets/vietqr_donation.png" width="240" alt="VietQR Donation"> | 🏦 **Ngân hàng**: **VietinBank** (TMCP Công thương Việt Nam)<br><br>💳 **Số tài khoản**: <code>109810171095</code><br><br>👤 **Chủ tài khoản**: **NGUYỄN TUẤN ANH**<br><br>💬 **Nội dung gợi ý**: <code>Ung ho Audiobook AI</code> |
+
+</div>
+
+---
+
+## 📑 9. Bản Quyền & Tri Ân (Credits & License) <a name="license"></a>
 
 Dự án này kế thừa và sử dụng các công nghệ mã nguồn mở tuyệt vời:
 * [VieNeu-TTS](https://github.com/pnnbao97/VieNeu-TTS) bởi **Phạm Nguyễn Ngọc Bảo** (`pnnbao97`).

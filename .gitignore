@@ -21,9 +21,10 @@ temp_work/
 *.mp3
 *.aac
 *.srt
-*.jpg
-*.png
-*.jpeg
+
+# Allow repository assets
+!assets/
+!assets/**
 
 # Python Bytecode & Cache
 __pycache__/
