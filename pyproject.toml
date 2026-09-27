@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "audiobook-automation"
+version = "19.7.0"
+authors = [
+  { name="Audiobook Team" },
+]
+description = "Automated Cinematic Audiobook & Video Essay Production System"
+readme = "README.md"
+requires-python = ">=3.10"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "torch",
+    "gradio",
+    "vieneu",
+    "diffusers",
+    "openai-whisper",
+    "pyyaml",
+    "python-dotenv",
+    "google-generativeai",
+    "google-api-python-client",
+]
+
+[project.scripts]
+audiobook = "main:main"

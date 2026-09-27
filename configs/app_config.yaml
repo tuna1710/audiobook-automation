@@ -1,0 +1,54 @@
+app:
+  name: "Audiobook Automation AI"
+  version: "19.7.0"
+  description: "Automated Cinematic Audiobook & Video Essay Production System"
+
+paths:
+  outputs_dir: "outputs"
+  temp_dir: "temp_work"
+  fonts_dir: "fonts"
+  default_font: "fonts/BeVietnamPro-Bold.ttf"
+
+video:
+  fps: 24
+  resolutions:
+    "16:9": [1920, 1080]
+    "9:16": [1080, 1920]
+  defaults:
+    aspect_ratio: "16:9"
+    title_font_size: 60
+    sub_font_size: 18
+    title_style: "✨ Điện Ảnh Sang Trọng (Chữ Trắng Đổ Bóng - Không Hộp Đen)"
+    sub_color: "Vàng viền đen (Nổi bật - Khuyên dùng)"
+    waveform_style: "Tắt"
+    retention_cuts: true
+    sync_mode: "Tự động (Theo phụ đề Whisper)"
+    bgm_volume: 0.15
+
+safe_zones:
+  vertical:
+    title_y: 140
+    sub_margin_v_normal: 38
+    sub_margin_v_wave: 52
+    wave_overlay_y: "H-h-240"
+  horizontal:
+    title_y: 50
+    sub_margin_v_normal: 24
+    sub_margin_v_wave: 34
+    wave_overlay_y: "H-h-25"
+
+thumbnail:
+  width: 1280
+  height: 720
+  font_color: "0xFFE600"
+  border_color: "black"
+  border_width: 9
+  shadow_offset: 6
+
+tts:
+  model_id: "pnnbao-ump/VieNeu-TTS-v3-Turbo"
+  default_voice: "Thiền Tâm Đức"
+
+youtube:
+  privacy_status: "private"
+  default_tags: "trinh thám, kinh dị gothic, noi so audiobook, sach noi kinh di, vu an bi an, true crime, video essay"
