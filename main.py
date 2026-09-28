@@ -12,6 +12,7 @@ sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
 from src.ui import create_gradio_app
 from src.pipeline import process_full_pipeline, process_batch_pipeline
 
+
 def parse_args():
     parser = argparse.ArgumentParser(description="Audiobook Automation AI Studio V19.7")
     parser.add_argument("--share", action="store_true", help="Tạo link công khai Gradio Share (Bắt buộc cho Google Colab)")
@@ -23,6 +24,23 @@ def parse_args():
     parser.add_argument("--voice", type=str, default="Thiền Tâm Đức", help="Tên giọng đọc VieNeu-TTS")
     return parser.parse_args()
 
+
+def print_hardware_banner():
+    """
+    Kiểm tra và hiển thị trạng thái phần cứng (Mặc định GPU T4 trên Google Colab).
+    """
+    try:
+        import torch
+        if torch.cuda.is_available():
+            device_name = torch.cuda.get_device_name(0)
+            vram_gb = torch.cuda.get_device_properties(0).total_memory / (1024**3)
+            print(f"🚀 PHẦN CỨNG: GPU {device_name} ({vram_gb:.1f} GB VRAM) - FP16 Kích Hoạt Tối Ưu")
+        else:
+            print("⚠️ CẢNH BÁO PHẦN CỨNG: Đang chạy trên CPU! Khuyên dùng GPU Tesla T4 trên Colab để đạt tốc độ tối đa.")
+    except Exception:
+        pass
+
+
 def main():
     args = parse_args()
 
@@ -33,6 +51,7 @@ def main():
     # Chế độ dòng lệnh thuần túy (CLI Headless)
     if args.cli:
         print("🚀 Khởi động chế độ dòng lệnh (Headless CLI)...")
+        print_hardware_banner()
         if not args.script or not os.path.exists(args.script):
             print(f"❌ Lỗi: Vui lòng cung cấp đường dẫn file kịch bản hợp lệ qua --script")
             sys.exit(1)
@@ -41,7 +60,7 @@ def main():
             script_content = f.read()
 
         ratio_label = "9:16 Dọc (TikTok / YouTube Shorts / Facebook Reels - 1080x1920)" if args.aspect_ratio == "9:16" else "16:9 Ngang (YouTube Video Essay Chuẩn - 1920x1080)"
-        
+
         print(f"📄 Đang xử lý: {args.script} ({args.aspect_ratio})")
         res = process_full_pipeline(
             script_input=script_content,
@@ -50,7 +69,7 @@ def main():
             gemini_api_key_input=gemini_key,
             pexels_key_input=pexels_keys
         )
-        print(res[4]) # In status message
+        print(res[4])  # In status message
         sys.exit(0)
 
     # Chế độ Web UI (Gradio)
@@ -59,6 +78,7 @@ def main():
     print(f"🌐 Server: http://localhost:{args.port}")
     if args.share:
         print("🔗 Chế độ chia sẻ trực tuyến (--share): BẬT (Thích hợp cho Google Colab)")
+    print_hardware_banner()
     print("=" * 60)
 
     app = create_gradio_app(default_gemini_key=gemini_key, default_pexels_key=pexels_keys)
@@ -68,6 +88,7 @@ def main():
         share=args.share,
         debug=False
     )
+
 
 if __name__ == "__main__":
     main()

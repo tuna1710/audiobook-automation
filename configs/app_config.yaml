@@ -3,6 +3,11 @@ app:
   version: "19.7.0"
   description: "Automated Cinematic Audiobook & Video Essay Production System"
 
+hardware:
+  device: "cuda"
+  preferred_gpu: "T4"
+  precision: "fp16"
+
 paths:
   outputs_dir: "outputs"
   temp_dir: "temp_work"
