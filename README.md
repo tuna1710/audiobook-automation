@@ -58,17 +58,24 @@
 3. [📂 Cấu Trúc Mã Nguồn (Modular Architecture)](#cau-truc)
 4. [🚀 Hướng Dẫn Cài Đặt (Quick Start)](#cai-dat)
    - [Cách 1: Google Colab (Launcher 3 ô lệnh)](#colab)
-   - [Cách 2: Máy tính cá nhân Windows (GPU NVIDIA)](#windows)
-   - [Cách 3: Máy chủ Linux / Ubuntu / Cloud GPU](#linux)
-   - [Cách 4: Triển khai Docker](#docker)
+   - [Cách 2: Windows PC (NVIDIA GPU)](#windows)
+   - [Cách 3: Linux / Cloud GPU](#linux)
+   - [Cách 4: Docker Container](#docker)
 5. [🎛️ Hướng Dẫn Sử Dụng Studio](#huong-dan)
-   - [Tab 1: Sản xuất video đơn lẻ](#tab1)
-   - [Tab 2: Sản xuất hàng loạt (Batch Processing)](#tab2)
-   - [Chế độ dòng lệnh không cần giao diện (Headless CLI)](#cli)
-6. [🔒 Tiêu Chuẩn Bảo Mật (Zero-Leak Security)](#bao-mat)
-7. [🗺️ Lộ Trình Phát Triển (Roadmap)](#roadmap)
-8. [☕ Ủng Hộ Phát Triển (Support & Donation)](#donation)
-9. [📑 Bản Quyền & Tri Ân (Credits & License)](#license)
+   - [Tab 1: Sản Xuất Video Đơn Lẻ](#tab1)
+   - [Tab 2: Sản Xuất Hàng Loạt (Batch)](#tab2)
+   - [Tab 3: Đăng & Lên Lịch Phát Hành YouTube (OAuth2 Studio)](#tab3)
+   - [Chế Độ Dòng Lệnh (CLI)](#cli)
+6. [🔑 Hướng Dẫn Cấu Hình YouTube Data API & OAuth 2.0](#youtube-setup)
+   - [Bước 1: Bật YouTube Data API v3](#step1-yt)
+   - [Bước 2: Cấu hình OAuth Consent Screen & Test Users](#step2-yt)
+   - [Bước 3: Tạo OAuth 2.0 Client ID (Desktop App)](#step3-yt)
+   - [Bước 4: Quy Trình Xác Thực 2 Bước Trực Quan Trên WebUI](#step4-yt)
+   - [Những Lưu Ý Quan Trọng Về Quota & Kỹ Thuật](#notes-yt)
+7. [🔒 Tiêu Chuẩn Bảo Mật (Zero-Leak Security)](#bao-mat)
+8. [🗺️ Lộ Trình Phát Triển (Roadmap)](#roadmap)
+9. [☕ Ủng Hộ Phát Triển (Support & Donation)](#donation)
+10. [📑 Bản Quyền & Tri Ân (Credits & License)](#license)
 
 ---
 
@@ -154,7 +161,7 @@ audiobook-automation/
 2. Bấm chạy lần lượt **3 ô lệnh**:
    * **Ô 1: Tải mã nguồn**:
      ```bash
-     !git clone https://github.com/<your-username>/audiobook-automation.git
+     !git clone https://github.com/tuna1710/audiobook-automation.git
      %cd /content/audiobook-automation
      ```
    * **Ô 2: Cài đặt thư viện**:
@@ -175,7 +182,7 @@ Mở **PowerShell** hoặc **Command Prompt**:
 
 ```powershell
 # 1. Clone repository
-git clone https://github.com/<your-username>/audiobook-automation.git
+git clone https://github.com/tuna1710/audiobook-automation.git
 cd audiobook-automation
 
 # 2. Tạo môi trường ảo
@@ -203,7 +210,7 @@ Truy cập tại: `http://localhost:7860`.
 sudo apt update && sudo apt install -y python3-pip python3-venv ffmpeg git
 
 # 2. Clone repo & thiết lập môi trường
-git clone https://github.com/<your-username>/audiobook-automation.git
+git clone https://github.com/tuna1710/audiobook-automation.git
 cd audiobook-automation
 python3 -m venv venv
 source venv/bin/activate
@@ -250,6 +257,23 @@ docker run --gpus all -p 7860:7860 --env-file .env audiobook-automation
 2. Chọn tỷ lệ khung hình chung và giọng đọc mong muốn.
 3. Bấm **"BẮT ĐẦU CHẠY CẢ MẺ HÀNG LOẠT"**: Hệ thống sẽ tự động xử lý tuần tự từng tập phim và lưu toàn bộ kết quả vào `outputs/`.
 
+### Tab 3: Đăng & Lên Lịch Phát Hành YouTube (OAuth2 Studio) <a name="tab3"></a>
+Tự động hóa hoàn toàn việc đưa sản phẩm lên YouTube với đầy đủ tính năng:
+1. **Lựa chọn nguồn video**:
+   - Chọn ngay *Video vừa tạo ở Tab 1*.
+   - Hoặc chọn từ danh sách dropdown các file video đã render trong thư mục `outputs/`.
+   - Hoặc tải trực tiếp file `.mp4` từ máy tính lên.
+2. **Hẹn giờ công khai tự động (Schedule Publish)**:
+   - Nhập thời gian phát hành theo định dạng `YYYY-MM-DD HH:MM` (múi giờ GMT+7 Việt Nam).
+   - Có nút bấm nhanh **"📋 Dán nhanh mốc 19:30 ngày mai"** (khung giờ vàng người xem).
+   - Video sẽ được YouTube giữ ở chế độ `private` và tự động công khai đúng thời điểm.
+3. **SEO & Metadata**:
+   - Tự động đồng bộ Tiêu đề, Thẻ Tags và Mô tả hoàn chỉnh (đã kèm mốc thời gian YouTube Chapters).
+4. **Xác thực an toàn 2 bước**:
+   - Bấm **BƯỚC 1: Lấy link đăng nhập Google** > Cho phép cấp quyền > Copy toàn bộ URL `https://localhost/?state=...&code=...` dán vào **BƯỚC 2** > Bấm **Xác thực & Lưu Token**.
+   - Token được lưu vĩnh viễn và tự động làm mới (auto-refresh) khi hết hạn.
+5. **Đăng video**: Bấm **"📤 ĐĂNG / LÊN LỊCH VIDEO LÊN YOUTUBE NGAY"**, hệ thống sẽ chia nhỏ video 5MB và truyền tải an toàn với cơ chế tự động thử lại khi gián đoạn mạng.
+
 ### Chế Độ Dòng Lệnh Không Cần Giao Diện (Headless CLI) <a name="cli"></a>
 Thích hợp để lập lịch cronjob tự động chạy xuyên đêm:
 ```bash
@@ -258,7 +282,51 @@ python main.py --cli --script ./sample_script.txt --aspect-ratio 16:9 --voice "T
 
 ---
 
-## 🔒 6. Tiêu Chuẩn Bảo Mật (Zero-Leak Security) <a name="bao-mat"></a>
+## 🔑 6. Hướng Dẫn Cấu Hình YouTube Data API & OAuth 2.0 <a name="youtube-setup"></a>
+
+Để sử dụng tính năng Đăng & Lên lịch tự động lên YouTube, bạn chỉ cần thực hiện 4 bước thiết lập một lần duy nhất trên Google Cloud:
+
+### Bước 1: Tạo Project & Bật YouTube Data API v3 <a name="step1-yt"></a>
+1. Truy cập [Google Cloud Console](https://console.cloud.google.com/).
+2. Tạo một Project mới (ví dụ: `Audiobook-AI-Publisher`).
+3. Vào menu **APIs & Services** > **Library**.
+4. Tìm kiếm từ khóa **YouTube Data API v3** và bấm nút **ENABLE (Bật)**.
+
+### Bước 2: Cấu hình Màn hình đồng ý OAuth (OAuth Consent Screen) <a name="step2-yt"></a>
+1. Vào **APIs & Services** > **OAuth consent screen**.
+2. Chọn loại người dùng: **External** (Bên ngoài) > Bấm **Create**.
+3. Điền tên ứng dụng (ví dụ: `Audiobook Studio`) và email hỗ trợ của bạn.
+4. Ở bước **Scopes**, thêm các phạm vi:
+   - `https://www.googleapis.com/auth/youtube.upload`
+   - `https://www.googleapis.com/auth/youtube`
+5. Ở bước **Test Users (Người dùng thử nghiệm)**: **RẤT QUAN TRỌNG!**
+   - Thêm địa chỉ Gmail mà bạn sẽ dùng để đăng nhập và đăng video. *(Nếu không thêm, Google sẽ chặn đăng nhập với lỗi 403 Access Denied)*.
+   - *(Tùy chọn: Bạn có thể bấm **Publish App** để đưa ứng dụng sang trạng thái Production giúp Refresh Token không bị hết hạn sau 7 ngày).*
+
+### Bước 3: Tạo OAuth Client ID & Tải file `client_secret.json` <a name="step3-yt"></a>
+1. Vào **APIs & Services** > **Credentials** > Bấm **+ CREATE CREDENTIALS** > Chọn **OAuth client ID**.
+2. Tại mục Application type: Chọn **Desktop app** (Ứng dụng cho máy tính).
+3. Đặt tên và bấm **Create**.
+4. Bấm **DOWNLOAD JSON** để tải file bí mật về máy.
+5. Đổi tên file thành `client_secret.json` và đặt vào thư mục gốc của dự án `audiobook-automation/` (hoặc upload trực tiếp trên TAB 3 của WebUI).
+
+### Bước 4: Quy Trình Xác Thực 2 Bước Trực Quan Trên WebUI <a name="step4-yt"></a>
+1. Khởi chạy WebUI và chuyển sang **TAB 3: ĐĂNG & LÊN LỊCH PHÁT HÀNH YOUTUBE**.
+2. Bấm **🔗 BƯỚC 1: LẤY LINK ĐĂNG NHẬP GOOGLE**.
+3. Mở đường link hiển thị trên trình duyệt > Chọn tài khoản Google sở hữu kênh YouTube > Bấm **Tiếp tục** > Bấm **Cho phép**.
+4. Trình duyệt chuyển sang trang `https://localhost/?state=...&code=4/0A...` (báo không thể kết nối - điều này là bình thường).
+5. **Copy TOÀN BỘ đường link** trên thanh địa chỉ, dán vào ô **BƯỚC 2** và bấm **💾 BƯỚC 2: XÁC THỰC & LƯU TOKEN**.
+6. Hệ thống báo `🎉 XÁC THỰC THÀNH CÔNG!` và tự động tạo file `token.json`. Từ nay bạn có thể đăng video mọi lúc mà không cần xác thực lại.
+
+### ⚠️ Những Lưu Ý Quan Trọng Về Quota & Kỹ Thuật <a name="notes-yt"></a>
+* 📊 **Hạn Mức Quota Hàng Ngày**: Google cấp mặc định 10.000 units/ngày cho mỗi project. Mỗi video upload tốn 1.600 units, thumbnail tốn 50 units (tối đa ~6 video/ngày). Quota tự động reset vào **14:00 giờ Việt Nam** hàng ngày.
+* 🛡️ **Tuyệt Đối Không Xóa `MediaFileUpload`**: Lớp này chịu trách nhiệm cắt nhỏ video thành từng khối 5MB để truyền tải an toàn. Hệ thống đã được tích hợp thuật toán **Exponential Backoff Retry** tự động thử lại 5 lần nếu kết nối mạng Colab hoặc server bị chập chờn.
+* 📱 **Xác Minh Kênh Bằng Số Điện Thoại**: Kênh YouTube cần bật tính năng tiêu chuẩn (Standard/Intermediate features) trong YouTube Studio để được phép upload custom thumbnail và video dài hơn 15 phút.
+
+---
+
+
+## 🔒 7. Tiêu Chuẩn Bảo Mật (Zero-Leak Security) <a name="bao-mat"></a>
 
 Dự án tuân thủ nghiêm ngặt tiêu chuẩn an ninh mã nguồn:
 * 🛡️ **Tự động chặn bằng `.gitignore`**: Toàn bộ file `.env`, `client_secrets.json`, `youtube_token.json` bị chặn tự động, không bao giờ vô tình bị đẩy lên GitHub.
@@ -267,7 +335,7 @@ Dự án tuân thủ nghiêm ngặt tiêu chuẩn an ninh mã nguồn:
 
 ---
 
-## 🗺️ 7. Lộ Trình Phát Triển (Roadmap) <a name="roadmap"></a>
+## 🗺️ 8. Lộ Trình Phát Triển (Roadmap) <a name="roadmap"></a>
 
 - [x] Tích hợp VieNeu-TTS-v3-Turbo 48kHz (Eager loop mode).
 - [x] Khống chế phụ đề tối đa 2 dòng điện ảnh.
@@ -281,7 +349,7 @@ Dự án tuân thủ nghiêm ngặt tiêu chuẩn an ninh mã nguồn:
 
 ---
 
-## ☕ 8. Ủng Hộ Phát Triển (Support & Donation) <a name="donation"></a>
+## ☕ 9. Ủng Hộ Phát Triển (Support & Donation) <a name="donation"></a>
 
 > [!NOTE]
 > Dự án **Audiobook Automation AI Studio** được phát triển và duy trì hoàn toàn phi lợi nhuận vì cộng đồng sáng tạo nội dung.  
@@ -297,7 +365,7 @@ Dự án tuân thủ nghiêm ngặt tiêu chuẩn an ninh mã nguồn:
 
 ---
 
-## 📑 9. Bản Quyền & Tri Ân (Credits & License) <a name="license"></a>
+## 📑 10. Bản Quyền & Tri Ân (Credits & License) <a name="license"></a>
 
 Dự án này kế thừa và sử dụng các công nghệ mã nguồn mở tuyệt vời:
 * [VieNeu-TTS](https://github.com/pnnbao97/VieNeu-TTS) bởi **Phạm Nguyễn Ngọc Bảo** (`pnnbao97`).
