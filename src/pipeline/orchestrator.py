@@ -69,6 +69,9 @@ def generate_scenes_for_cuts(cuts, visual_mode: str, session_id: str, aspect_rat
         assets.append(img_out)
         if len(thumbs) < 4:
             thumbs.append(img_out)
+        # Giãn cách 0.8s để bảo toàn hạn ngạch 20 RPM Gemini Free Tier
+        if gemini_api_key and i < len(cuts) - 1:
+            time.sleep(0.8)
 
     return assets, thumbs
 

@@ -122,7 +122,7 @@ def create_gradio_app(default_gemini_key: str = "", default_pexels_key: str = ""
 
                         with gr.Accordion("⚙️ CÀI ĐẶT NÂNG CAO (AI & API KEYS)", open=False):
                             with gr.Row():
-                                gemini_key_box = gr.Textbox(label="Gemini API Key:", value=default_gemini_key, type="password")
+                                gemini_key_box = gr.Textbox(label="Gemini API Keys (Hỗ trợ nhiều key cách bằng dấu phẩy để nhân bội Quota):", placeholder="AIzaSy..., AIzaSy... (Tự động xoay tua chống lỗi 429)", value=default_gemini_key, type="password")
                                 gemini_model_dropdown = gr.Dropdown(
                                     choices=["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.5-pro"],
                                     value="gemini-2.5-flash",
@@ -200,9 +200,9 @@ def create_gradio_app(default_gemini_key: str = "", default_pexels_key: str = ""
                         with gr.Accordion("⚙️ CÀI ĐẶT API KEYS CHO MẺ BATCH (Tự động lấy từ Tab 1 nếu để trống)", open=False):
                             with gr.Row():
                                 b_gemini_key_box = gr.Textbox(
-                                    label="Gemini API Key (Batch):",
+                                    label="Gemini API Keys (Batch - Hỗ trợ xoay tua nhiều key):",
                                     value=default_gemini_key,
-                                    placeholder="Để trống sẽ tự động lấy từ Tab 1...",
+                                    placeholder="AIzaSy..., AIzaSy... (Để trống sẽ tự động lấy từ Tab 1)",
                                     type="password"
                                 )
                                 b_gemini_model_dropdown = gr.Dropdown(
