@@ -63,17 +63,17 @@ def get_sample_tomorrow_time() -> str:
 
 def create_gradio_app(default_gemini_key: str = "", default_pexels_key: str = ""):
     """
-    Xây dựng giao diện Web Gradio V19.7 đa nền tảng với đầy đủ 3 Tab chuyên nghiệp:
-    - Tab 1: Sản xuất đơn lẻ với bộ chọn Phong Cách Nghệ Thuật (Art Style)
+    Xây dựng giao diện Web Gradio V19.8 đa nền tảng với đầy đủ 3 Tab chuyên nghiệp:
+    - Tab 1: Sản xuất đơn lẻ với AI Director (SDXL Multi-Art Styles & Continuous Sync)
     - Tab 2: Sản xuất hàng loạt tích hợp cài đặt API Key & Phong cách riêng cho cả mẻ
     - Tab 3: Trung tâm phân phối YouTube Studio OAuth2
     """
     sample_time_vn = get_sample_tomorrow_time()
 
-    with gr.Blocks(title="Audiobook Automation AI Studio V19.7") as demo:
+    with gr.Blocks(title="Audiobook Automation AI Studio V19.8") as demo:
         gr.Markdown(
-            "# 🎙️ AUDIOBOOK AUTOMATION STUDIO V19.7\n"
-            "### 🎬 Sản Xuất Video Essay & Audiobook Tự Động: VieNeu-TTS 48kHz | SDXL Multi-Art Styles | Whisper | 1-Click YouTube Auto Publish"
+            "# 🎙️ AUDIOBOOK AUTOMATION STUDIO V19.8\n"
+            "### 🎬 Sản Xuất Video Essay & Audiobook Tự Động: VieNeu-TTS 48kHz | SDXL Pure AI Engine | Whisper Continuous Sync | 1-Click YouTube Auto Publish"
         )
 
         with gr.Tabs():
@@ -99,37 +99,35 @@ def create_gradio_app(default_gemini_key: str = "", default_pexels_key: str = ""
                         )
 
                         with gr.Row():
-                            visual_mode_dropdown = gr.Dropdown(
-                                choices=["SDXL (AI Hình Ảnh Ẩn Dụ)", "Pexels (Video Stock Chuyển Động)", "Pexels Ưu Tiên (Thiếu sẽ bù SDXL)"],
-                                value="SDXL (AI Hình Ảnh Ẩn Dụ)",
-                                label="🎨 Nguồn Tư Liệu Thị Giác:",
-                                scale=2
-                            )
                             art_style_dropdown = gr.Dropdown(
                                 choices=ART_STYLE_CHOICES,
                                 value=ART_STYLE_CHOICES[0],
-                                label="🖌️ Phong Cách Nghệ Thuật (Art Style):",
+                                label="🖌️ Phong Cách Nghệ Thuật (SDXL AI Engine):",
                                 scale=3
+                            )
+                            sync_mode_dropdown = gr.Dropdown(
+                                choices=["Tự động (Theo phụ đề Whisper - Continuous Timeline)", "Thủ công (Chia đều kịch bản)"],
+                                value="Tự động (Theo phụ đề Whisper - Continuous Timeline)",
+                                label="⚡ Cơ Chế Cắt Cảnh Đồng Bộ:",
+                                scale=2
                             )
 
                         with gr.Row():
-                            sync_mode_dropdown = gr.Dropdown(
-                                choices=["Tự động (Theo phụ đề Whisper)", "Thủ công (Chia đều kịch bản)"],
-                                value="Tự động (Theo phụ đề Whisper)",
-                                label="⚡ Cơ Chế Cắt Cảnh:"
-                            )
                             num_scenes_slider = gr.Slider(minimum=5, maximum=40, value=15, step=1, label="Số Cảnh (Khi chọn thủ công):")
 
                         with gr.Accordion("⚙️ CÀI ĐẶT NÂNG CAO (AI & API KEYS)", open=False):
                             with gr.Row():
-                                gemini_key_box = gr.Textbox(label="Gemini API Keys (Hỗ trợ nhiều key cách bằng dấu phẩy để nhân bội Quota):", placeholder="AIzaSy..., AIzaSy... (Tự động xoay tua chống lỗi 429)", value=default_gemini_key, type="password")
+                                gemini_key_box = gr.Textbox(
+                                    label="Gemini API Keys (Hỗ trợ nhiều key cách bằng dấu phẩy để nhân bội Quota):",
+                                    placeholder="AIzaSy..., AIzaSy... (Tự động xoay tua chống lỗi 429)",
+                                    value=default_gemini_key,
+                                    type="password"
+                                )
                                 gemini_model_dropdown = gr.Dropdown(
                                     choices=["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.5-pro"],
                                     value="gemini-2.5-flash",
                                     label="Gemini Model:"
                                 )
-                            with gr.Row():
-                                pexels_key_box = gr.Textbox(label="Pexels API Keys (Xoay tua nhiều key cách bằng dấu phẩy):", value=default_pexels_key)
                                 allow_reuse_box = gr.Checkbox(label="Cho phép dùng lại hình ảnh đẹp", value=False)
 
                         with gr.Row():
@@ -146,7 +144,7 @@ def create_gradio_app(default_gemini_key: str = "", default_pexels_key: str = ""
                                 bgm_gdrive_box = gr.Textbox(label="Hoặc dán Link Google Drive BGM:")
                                 bgm_vol_slider = gr.Slider(minimum=0.05, maximum=0.5, value=0.15, step=0.01, label="Âm lượng BGM (Mặc định 15%):")
 
-                        with gr.Accordion("📝 CÀI ĐẶT PHỤ ĐỀ & SÓNG ÂM (SAFE ZONE FIX V19.7)", open=True):
+                        with gr.Accordion("📝 CÀI ĐẶT PHỤ ĐỀ & SÓNG ÂM (SAFE ZONE FIX V19.8)", open=True):
                             with gr.Row():
                                 add_sub_cb = gr.Checkbox(label="Bật phụ đề (Subtitles)", value=True)
                                 sub_color_dropdown = gr.Dropdown(choices=SUB_COLORS, value=SUB_COLORS[0], label="Màu chữ phụ đề:")
@@ -210,12 +208,6 @@ def create_gradio_app(default_gemini_key: str = "", default_pexels_key: str = ""
                                     value="gemini-2.5-flash",
                                     label="Gemini Model:"
                                 )
-                            with gr.Row():
-                                b_pexels_key_box = gr.Textbox(
-                                    label="Pexels API Keys (Batch):",
-                                    value=default_pexels_key,
-                                    placeholder="Để trống sẽ tự động lấy từ Tab 1..."
-                                )
 
                         with gr.Accordion("🚀 CẤU HÌNH YOUTUBE CHO CẢ MẺ (1-CLICK BATCH UPLOAD)", open=True):
                             with gr.Row():
@@ -261,52 +253,36 @@ def create_gradio_app(default_gemini_key: str = "", default_pexels_key: str = ""
 
                 with gr.Row():
                     history_vids_dropdown = gr.Dropdown(
-                        label="📁 Chọn video trong thư mục outputs/ (Chỉ hiển thị video hoàn thiện):",
                         choices=get_available_rendered_videos(),
                         value=get_available_rendered_videos()[0] if get_available_rendered_videos() else None,
+                        label="Danh sách video trong outputs/:",
+                        interactive=True,
                         scale=3
                     )
-                    refresh_vids_btn = gr.Button("🔄 Làm mới danh sách outputs/", scale=1)
+                    refresh_vids_btn = gr.Button("🔄 Làm mới danh sách", scale=1)
 
-                custom_video_file = gr.File(label="💻 Hoặc tải file video MP4 bất kỳ từ máy tính của bạn:")
+                manual_video_file = gr.File(label="Tải file video MP4 từ máy tính của bạn:", file_types=[".mp4"])
 
-                gr.Markdown(
-                    "### ⏰ 2. TÍNH NĂNG HẸN GIỜ LÊN LỊCH ĐĂNG (SCHEDULE PUBLISH):\n"
-                    "*(Hệ thống hỗ trợ đặt giờ phát hành tự động theo định dạng `YYYY-MM-DD HH:MM` — Múi giờ Việt Nam GMT+7)*"
-                )
-                schedule_cb = gr.Checkbox(label="⏰ Bật Hẹn Giờ Lên Lịch Đăng Tự Động (Tự động công khai đúng giờ)", value=False)
+                gr.Markdown("### 📝 2. THÔNG TIN PHÁT HÀNH YOUTUBE (METADATA & SEO):")
                 with gr.Row():
+                    yt_upload_title_box = gr.Textbox(label="Tiêu đề Video (Tối đa 100 ký tự):", placeholder="Để trống sẽ tự động lấy từ video Tab 1...")
+                with gr.Row():
+                    yt_upload_desc_box = gr.Textbox(label="Mô tả Video (Tối đa 5000 ký tự - Hỗ trợ Timestamps):", lines=6, placeholder="Để trống sẽ tự động lấy từ video Tab 1...")
+                with gr.Row():
+                    yt_tags_box = gr.Textbox(label="Thẻ Tags (cách nhau bằng dấu phẩy):", value="tamlyhoc, triethoc, videoessay, audiobook")
+
+                gr.Markdown("### ⏰ 3. HẸN GIỜ CÔNG KHAI HOẶC CHẾ ĐỘ RIÊNG TƯ:")
+                with gr.Row():
+                    tab3_privacy_dropdown = gr.Dropdown(choices=["private", "unlisted", "public"], value="private", label="Chế độ riêng tư mặc định:")
+                    tab3_is_schedule_cb = gr.Checkbox(label="Bật chế độ Hẹn Giờ (Schedule)", value=False)
                     custom_sched_time_box = gr.Textbox(
-                        label="Ngày giờ phát hành YouTube (Định dạng: YYYY-MM-DD HH:MM):",
-                        placeholder=f"VD: {sample_time_vn}",
-                        value="",
-                        lines=1,
-                        scale=3
+                        label="Thời gian hẹn giờ công khai (Giờ Việt Nam UTC+7):",
+                        placeholder="YYYY-MM-DD HH:MM (ví dụ: 2026-09-29 19:30)",
+                        value=""
                     )
-                    btn_fill_sample = gr.Button(f"📋 Dán nhanh mốc 19:30 ngày mai", variant="secondary", scale=1)
+                    btn_fill_sample = gr.Button("⏱️ Điền mẫu 19:30 tối mai", size="sm")
 
-                gr.Markdown("### 📝 3. THÔNG TIN VIDEO YOUTUBE (TỰ ĐỘNG ĐỒNG BỘ HOẶC TÙY BIẾN):")
-                yt_title_box = gr.Textbox(label="Tiêu đề Video YouTube:", lines=1)
-                yt_desc_box = gr.Textbox(label="Mô tả Video (SEO Description & Chapters):", lines=5)
-                yt_tags_box = gr.Textbox(
-                    label="Thẻ Tags YouTube (Mặc định chuẩn SEO):",
-                    value="Audiobook, truyện trinh thám, kinh dị gothic, sách nói kinh dị, video essay",
-                    lines=1
-                )
-                yt_privacy_tab3 = gr.Dropdown(
-                    label="Chế độ đăng (Khi không hẹn giờ):",
-                    choices=["private", "unlisted", "public"],
-                    value="private"
-                )
-
-                gr.Markdown("### 🔑 4. XÁC THỰC TÀI KHOẢN YOUTUBE (OAUTH 2.0 CHUẨN https://localhost):")
-                with gr.Row():
-                    secrets_file_box = gr.File(label="Tải file client_secret.json lên đây (hoặc để sẵn ở thư mục gốc / configs):")
-                    redirect_uri_box = gr.Textbox(
-                        label="Redirect URI (Mặc định https://localhost):",
-                        value="https://localhost"
-                    )
-
+                gr.Markdown("### 🔑 4. XÁC THỰC TÀI KHOẢN YOUTUBE (OAUTH 2.0 FLOW):")
                 with gr.Row():
                     get_url_btn = gr.Button("🔗 BƯỚC 1: LẤY LINK ĐĂNG NHẬP GOOGLE", variant="secondary")
                 oauth_url_display = gr.Textbox(label="Link & Hướng dẫn ủy quyền chi tiết:", interactive=False, lines=5)
@@ -333,8 +309,8 @@ def create_gradio_app(default_gemini_key: str = "", default_pexels_key: str = ""
         # ==========================================================
         # 1. TAB 1: SẢN XUẤT ĐƠN LẺ
         def handle_tab1(
-            script, ratio, visual_mode, art_style, sync_mode, num_scenes,
-            pexels_key, gemini_key, gemini_model, allow_reuse, voice,
+            script, ratio, art_style, sync_mode, num_scenes,
+            gemini_key, gemini_model, allow_reuse, voice,
             topic_title, title_size, title_style, bgm_up, bgm_gd,
             bgm_vol, add_sub, sub_color, waveform, sub_size,
             privacy, email, shared_folder, auto_up
@@ -342,10 +318,8 @@ def create_gradio_app(default_gemini_key: str = "", default_pexels_key: str = ""
             return process_full_pipeline(
                 script_input=script,
                 aspect_ratio=ratio,
-                visual_mode=visual_mode,
                 sync_mode_choice=sync_mode,
                 num_scenes_slider=num_scenes,
-                pexels_key_input=pexels_key,
                 gemini_api_key_input=gemini_key,
                 gemini_model_input=gemini_model,
                 allow_reuse_input=allow_reuse,
@@ -369,8 +343,8 @@ def create_gradio_app(default_gemini_key: str = "", default_pexels_key: str = ""
             )
 
         tab1_inputs_list = [
-            script_box, aspect_ratio_radio, visual_mode_dropdown, art_style_dropdown, sync_mode_dropdown,
-            num_scenes_slider, pexels_key_box, gemini_key_box, gemini_model_dropdown,
+            script_box, aspect_ratio_radio, art_style_dropdown, sync_mode_dropdown,
+            num_scenes_slider, gemini_key_box, gemini_model_dropdown,
             allow_reuse_box, voice_dropdown, topic_title_box, title_size_slider,
             title_style_dropdown, bgm_upload, bgm_gdrive_box, bgm_vol_slider,
             add_sub_cb, sub_color_dropdown, waveform_dropdown, sub_size_slider,
@@ -401,25 +375,21 @@ def create_gradio_app(default_gemini_key: str = "", default_pexels_key: str = ""
         def handle_tab2(
             batch_files, batch_folder, ratio, voice, art_style, sub_size,
             privacy, email, shared_folder,
-            b_gemini_key, b_gemini_model, b_pexels_key,
-            tab1_gemini_key, tab1_gemini_model, tab1_pexels_key,
+            b_gemini_key, b_gemini_model,
+            tab1_gemini_key, tab1_gemini_model,
             title_size, title_style, bgm_up, bgm_gd, bgm_vol,
             add_sub, sub_color, waveform,
             auto_up
         ):
-            # Tự động kế thừa API key từ Tab 1 nếu Tab 2 để trống
             effective_gemini_key = b_gemini_key.strip() if b_gemini_key and b_gemini_key.strip() else tab1_gemini_key.strip()
             effective_gemini_model = b_gemini_model if b_gemini_model else tab1_gemini_model
-            effective_pexels_key = b_pexels_key.strip() if b_pexels_key and b_pexels_key.strip() else tab1_pexels_key.strip()
 
             return process_batch_pipeline(
                 batch_files=batch_files,
                 batch_folder_path=batch_folder,
                 aspect_ratio=ratio,
-                visual_mode="SDXL (AI Hình Ảnh Ẩn Dụ)",
-                sync_mode_choice="Tự động (Theo phụ đề Whisper)",
+                sync_mode_choice="Tự động (Theo phụ đề Whisper - Continuous Timeline)",
                 num_scenes_slider=15,
-                pexels_key_input=effective_pexels_key,
                 allow_reuse_input=False,
                 voice_selected=voice,
                 title_font_size=title_size,
@@ -445,8 +415,8 @@ def create_gradio_app(default_gemini_key: str = "", default_pexels_key: str = ""
         tab2_inputs_list = [
             batch_files_box, batch_folder_box, b_aspect_ratio, b_voice_dropdown, b_art_style, b_sub_size,
             b_yt_privacy, b_editor_email, b_shared_drive,
-            b_gemini_key_box, b_gemini_model_dropdown, b_pexels_key_box,
-            gemini_key_box, gemini_model_dropdown, pexels_key_box,
+            b_gemini_key_box, b_gemini_model_dropdown,
+            gemini_key_box, gemini_model_dropdown,
             title_size_slider, title_style_dropdown, bgm_upload, bgm_gdrive_box, bgm_vol_slider,
             add_sub_cb, sub_color_dropdown, waveform_dropdown
         ]
@@ -482,56 +452,42 @@ def create_gradio_app(default_gemini_key: str = "", default_pexels_key: str = ""
 
         get_url_btn.click(
             fn=get_youtube_auth_url,
-            inputs=[secrets_file_box, redirect_uri_box],
-            outputs=[oauth_url_display, redirect_uri_box]
+            outputs=[oauth_url_display]
         )
 
         save_token_btn.click(
             fn=verify_oauth_code_and_save_token,
-            inputs=[auth_code_box, redirect_uri_box],
+            inputs=[auth_code_box],
             outputs=[token_status_box]
         )
 
-        # 4. TAB 3: Logic xử lý tải lên YouTube
-        def handle_tab3_manual_upload(
-            source_mode: str,
-            tab1_video: Any,
-            history_video_name: str,
-            uploaded_file: Any,
-            title: str,
-            description: str,
-            tags: str,
-            is_sched: bool,
-            sched_time: str,
-            privacy: str,
-            email: str,
-            shared_folder: str
-        ) -> str:
-            resolved_tab1 = resolve_file_path(tab1_video)
-            resolved_custom = resolve_file_path(uploaded_file)
-            resolved_hist = None
+        # Xử lý đăng video Tab 3
+        def handle_tab3_upload(
+            source_mode, selected_hist_vid, uploaded_file,
+            custom_title, custom_desc, custom_tags,
+            privacy, is_sched, sched_time,
+            email, shared_folder
+        ):
+            target_video = None
+            if "Tab 1" in source_mode:
+                vids = get_available_rendered_videos()
+                if vids and vids[0] != "(Chưa có video nào trong outputs)":
+                    target_video = os.path.join("outputs", vids[0])
+            elif "outputs/" in source_mode:
+                if selected_hist_vid and selected_hist_vid != "(Chưa có video nào trong outputs)":
+                    target_video = os.path.join("outputs", selected_hist_vid)
+            elif "máy tính" in source_mode:
+                if uploaded_file:
+                    target_video = uploaded_file.name if hasattr(uploaded_file, "name") else str(uploaded_file)
 
-            if history_video_name and not str(history_video_name).startswith("("):
-                cand = os.path.join("outputs", history_video_name)
-                if os.path.exists(cand):
-                    resolved_hist = cand
-
-            target_path = None
-            if "máy tính" in str(source_mode).lower():
-                target_path = resolved_custom
-            elif "outputs" in str(source_mode).lower():
-                target_path = resolved_hist
-            else:
-                target_path = resolved_tab1 or resolved_hist or resolved_custom
-
-            if not target_path or not os.path.exists(target_path):
-                return f"❌ Lỗi: Không tìm thấy file video hợp lệ để tải lên! (Nguồn đang chọn: {source_mode})"
+            if not target_video or not os.path.exists(target_video):
+                return "❌ Lỗi: Không tìm thấy file video hợp lệ để tải lên!"
 
             return upload_to_youtube(
-                video_file_path=target_path,
-                title=title,
-                description=description,
-                tags=tags,
+                video_file_path=target_video,
+                title=custom_title,
+                description=custom_desc,
+                tags=custom_tags,
                 is_schedule=is_sched,
                 custom_schedule_time=sched_time,
                 privacy_status=privacy,
@@ -541,11 +497,12 @@ def create_gradio_app(default_gemini_key: str = "", default_pexels_key: str = ""
             )
 
         upload_yt_btn.click(
-            fn=handle_tab3_manual_upload,
+            fn=handle_tab3_upload,
             inputs=[
-                video_source_mode, video_output, history_vids_dropdown, custom_video_file,
-                yt_title_box, yt_desc_box, yt_tags_box, schedule_cb, custom_sched_time_box,
-                yt_privacy_tab3, tab3_editor_email, tab3_shared_folder
+                video_source_mode, history_vids_dropdown, manual_video_file,
+                yt_upload_title_box, yt_upload_desc_box, yt_tags_box,
+                tab3_privacy_dropdown, tab3_is_schedule_cb, custom_sched_time_box,
+                tab3_editor_email, tab3_shared_folder
             ],
             outputs=[yt_status_box]
         )

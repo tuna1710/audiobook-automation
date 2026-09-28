@@ -14,7 +14,7 @@ from src.pipeline import process_full_pipeline, process_batch_pipeline
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Audiobook Automation AI Studio V19.7")
+    parser = argparse.ArgumentParser(description="Audiobook Automation AI Studio V19.8")
     parser.add_argument("--share", action="store_true", help="Tạo link công khai Gradio Share (Bắt buộc cho Google Colab)")
     parser.add_argument("--host", type=str, default="0.0.0.0", help="Địa chỉ IP host (Mặc định: 0.0.0.0)")
     parser.add_argument("--port", type=int, default=7860, help="Cổng chạy Web UI (Mặc định: 7860)")
@@ -46,7 +46,6 @@ def main():
 
     # Kiểm tra biến môi trường
     gemini_key = os.environ.get("GEMINI_API_KEY", "")
-    pexels_keys = os.environ.get("PEXELS_API_KEYS", "")
 
     # Chế độ dòng lệnh thuần túy (CLI Headless)
     if args.cli:
@@ -66,22 +65,21 @@ def main():
             script_input=script_content,
             aspect_ratio=ratio_label,
             voice_selected=args.voice,
-            gemini_api_key_input=gemini_key,
-            pexels_key_input=pexels_keys
+            gemini_api_key_input=gemini_key
         )
         print(res[4])  # In status message
         sys.exit(0)
 
     # Chế độ Web UI (Gradio)
     print("=" * 60)
-    print("🎙️ AUDIOBOOK AUTOMATION STUDIO V19.7")
+    print("🎙️ AUDIOBOOK AUTOMATION STUDIO V19.8")
     print(f"🌐 Server: http://localhost:{args.port}")
     if args.share:
         print("🔗 Chế độ chia sẻ trực tuyến (--share): BẬT (Thích hợp cho Google Colab)")
     print_hardware_banner()
     print("=" * 60)
 
-    app = create_gradio_app(default_gemini_key=gemini_key, default_pexels_key=pexels_keys)
+    app = create_gradio_app(default_gemini_key=gemini_key)
     app.queue(default_concurrency_limit=2).launch(
         server_name=args.host,
         server_port=args.port,

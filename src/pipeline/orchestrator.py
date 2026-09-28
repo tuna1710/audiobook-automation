@@ -11,88 +11,159 @@ from ..subtitles import extract_whisper_segments_and_srt, recalculate_and_inject
 from ..ai_director import (
     enhance_visual_prompt_gemini,
     generate_micro_batch_visual_prompts,
-    PexelsRotator,
     generate_sdxl_metaphor_image,
     get_sdxl_pipeline
 )
 from ..video import handle_background_music, generate_ctr_booster_thumbnail, render_ultimate_video
 from ..youtube import upload_to_youtube
 
-def build_retention_cuts(segments, total_dur: float, auto_sync_mode: bool = True, max_scenes_manual: int = 15, enable_retention: bool = True):
+def build_retention_cuts(
+    segments,
+    total_dur: float,
+    auto_sync_mode: bool = True,
+    max_scenes_manual: int = 15,
+    enable_retention: bool = True,
+    min_scene_duration: float = 6.0
+):
     """
-    Xây dựng các mốc chuyển cảnh (Cuts) đồng bộ theo câu nói hoặc chia đều kịch bản.
+    XÂY DỰNG MỐC PHÂN CẢNH LIÊN TỤC (CONTINUOUS TIMELINE ALIGNMENT) & GOM CỤM THÔNG MINH:
+    - Loại bỏ 100% lỗi lệch hình và tiếng: Gộp mọi khoảng lặng/ngắt nghỉ giữa các câu vào thời gian hiển thị.
+    - Gom cụm thông minh (Smart Scene Clustering): Cụm các câu thoại ngắn thành phân cảnh đủ dài (>= 6s)
+      kết thúc ở dấu câu hợp lý, tạo trải nghiệm điện ảnh mượt mà và cung cấp trọn vẹn ngữ cảnh cho AI Director.
+    - Chế độ thủ công (Manual): Trích xuất chính xác phần kịch bản tương ứng với từng mốc thời gian.
+    - Tổng thời lượng các cuts luôn khớp 100% với tổng thời lượng file âm thanh (total_dur).
     """
     cuts = []
+
     if auto_sync_mode and segments:
+        clusters = []
+        cur_cluster = []
+        cur_cluster_dur = 0.0
+
         for seg in segments:
             st = float(seg["start"])
             et = float(seg["end"])
+            txt = seg.get("text", "").strip()
+            if not txt:
+                continue
+
+            seg_dur = max(0.1, et - st)
+            cur_cluster.append({"start": st, "end": et, "text": txt, "duration": seg_dur})
+            cur_cluster_dur += seg_dur
+
+            # Điều kiện kết thúc cụm cảnh: Đạt độ dài tối thiểu (>= 6s) và có dấu kết câu, hoặc đạt ngưỡng trần (>= 12s)
+            is_sentence_end = any(txt.endswith(p) for p in ['.', '!', '?', '…', ':'])
+            if (cur_cluster_dur >= min_scene_duration and is_sentence_end) or cur_cluster_dur >= 12.0:
+                clusters.append(cur_cluster)
+                cur_cluster = []
+                cur_cluster_dur = 0.0
+
+        if cur_cluster:
+            if clusters and cur_cluster_dur < 3.5:
+                # Nếu cụm thừa cuối quá ngắn (<3.5s), gộp vào cụm kế trước
+                clusters[-1].extend(cur_cluster)
+            else:
+                clusters.append(cur_cluster)
+
+        if not clusters:
+            clusters = [[s] for s in segments if s.get("text", "").strip()]
+
+        num_clusters = len(clusters)
+        for i, cl in enumerate(clusters):
+            cl_text = " ".join(item["text"] for item in cl)
+            first_st = cl[0]["start"]
+
+            # Cảnh đầu tiên xuất phát từ 0.0s
+            start_t = 0.0 if i == 0 else first_st
+
+            # Cảnh tiếp theo xuất hiện đúng khi câu thoại của nó bắt đầu
+            if i == num_clusters - 1:
+                end_t = total_dur
+            else:
+                next_first_st = clusters[i + 1][0]["start"]
+                end_t = next_first_st
+
+            if end_t <= start_t:
+                end_t = start_t + 1.0
+
             cuts.append({
-                "start": st,
-                "end": et,
-                "duration": max(0.5, et - st),
-                "text": seg.get("text", "")
+                "start": start_t,
+                "end": end_t,
+                "duration": max(0.5, end_t - start_t),
+                "text": cl_text
             })
+
+        # Đảm bảo cảnh cuối cùng khớp chuẩn xác tuyệt đối với mốc kết thúc audio
+        if cuts:
+            cuts[-1]["end"] = total_dur
+            cuts[-1]["duration"] = max(0.5, total_dur - cuts[-1]["start"])
+
     else:
         num_scenes = max(1, int(max_scenes_manual))
         dur_step = total_dur / num_scenes
         for i in range(num_scenes):
             st = i * dur_step
-            et = min(total_dur, (i + 1) * dur_step)
+            et = total_dur if i == num_scenes - 1 else (i + 1) * dur_step
+
+            matching_texts = []
+            if segments:
+                for s in segments:
+                    s_mid = (s["start"] + s["end"]) / 2.0
+                    if st <= s_mid < et:
+                        matching_texts.append(s.get("text", ""))
+
+            cut_text = " ".join(matching_texts).strip() if matching_texts else f"Phân cảnh kịch bản {i+1}"
             cuts.append({
                 "start": st,
                 "end": et,
                 "duration": max(0.5, et - st),
-                "text": f"Phân cảnh {i+1}"
+                "text": cut_text
             })
+
     return cuts
 
-def generate_scenes_for_cuts(cuts, visual_mode: str, session_id: str, aspect_ratio: str, pexels_keys: str, gemini_api_key: str, gemini_model: str, visual_concept: str, temp_dir: str = "temp_work", art_style: str = "cinematic"):
+def generate_scenes_for_cuts(
+    cuts,
+    session_id: str,
+    aspect_ratio: str,
+    gemini_api_key: str,
+    gemini_model: str,
+    visual_concept: str,
+    temp_dir: str = "temp_work",
+    art_style: str = "cinematic",
+    visual_mode: str = "SDXL"
+):
     """
-    Chuẩn bị tài nguyên hình ảnh/video cho từng phân cảnh.
-    Sử dụng Micro-Batch Storyboard (3 cảnh / 1 request) để:
-    - Giảm số lượt gọi Gemini từ 15-20 xuống chỉ còn 3-5 requests (< 10 requests).
-    - Duy trì liên kết thị giác & đạo diễn điện ảnh (Wide -> Medium -> Close-up).
-    - Ngăn ngừa lỗi 429 Quota Exceeded và tối ưu hóa thời gian sinh ảnh.
+    Chuẩn bị tài nguyên hình ảnh AI thuần túy (Pure AI Image Generation qua SDXL & Gemini Micro-Batch).
+    - Sử dụng Micro-Batch Storyboard (3 cảnh / 1 request) để phân bổ nhịp quay điện ảnh (Wide -> Medium -> Close-up).
+    - Giữ trọn tính nhất quán thị giác và loại bỏ hoàn toàn rủi ro 429 Quota Exceeded.
+    - Tạo ảnh điện ảnh độ phân giải cao qua SDXL-Turbo.
     """
     os.makedirs(temp_dir, exist_ok=True)
-    is_vertical = "9:16" in aspect_ratio
-    rotator = PexelsRotator(pexels_keys)
     assets = []
     thumbs = []
 
-    # Tiền xử lý kịch bản phân cảnh Micro-Batch & pre-warm SDXL pipeline
-    prompts = []
-    sdxl_pipe = None
-    if "Pexels" not in visual_mode or not pexels_keys:
-        cut_texts = [cut.get("text", "") for cut in cuts]
-        print(f"[AI Director] Bắt đầu Micro-Batch Storyboard ({len(cut_texts)} cảnh, Style: {art_style})...")
-        prompts = generate_micro_batch_visual_prompts(
-            scenes=cut_texts,
-            visual_concept=visual_concept,
-            api_key=gemini_api_key,
-            model_name=gemini_model,
-            art_style=art_style,
-            batch_size=3
-        )
-        try:
-            sdxl_pipe = get_sdxl_pipeline()
-        except Exception:
-            sdxl_pipe = None
+    cut_texts = [cut.get("text", "") for cut in cuts]
+    print(f"🎬 [AI Director] Bắt đầu Micro-Batch Storyboard ({len(cut_texts)} cảnh, Style: {art_style})...")
+
+    prompts = generate_micro_batch_visual_prompts(
+        cuts_text_list=cut_texts,
+        visual_concept=visual_concept,
+        api_key=gemini_api_key,
+        model_name=gemini_model,
+        art_style=art_style,
+        batch_size=3
+    )
+
+    try:
+        sdxl_pipe = get_sdxl_pipeline()
+    except Exception as e_pipe:
+        print(f"⚠️ Cảnh báo khởi tạo SDXL Pipeline: {e_pipe}")
+        sdxl_pipe = None
 
     for i, cut in enumerate(cuts):
         asset_path = os.path.join(temp_dir, f"asset_{session_id}_{i}.jpg")
-        if "Pexels" in visual_mode and pexels_keys:
-            video_asset = os.path.join(temp_dir, f"asset_{session_id}_{i}.mp4")
-            orientation = "portrait" if is_vertical else "landscape"
-            kw = cut.get("text", "").split()[:3]
-            query = " ".join(kw) if kw else "mystery cinematic"
-            res = rotator.search_and_download_video(query, video_asset, orientation=orientation)
-            if res:
-                assets.append(video_asset)
-                continue
 
-        # Lấy prompt đã được tối ưu từ Micro-Batch hoặc fallback
         if i < len(prompts) and prompts[i]:
             prompt = prompts[i]
         else:
@@ -111,7 +182,6 @@ def process_full_pipeline(
     visual_mode: str = "SDXL (AI Hình Ảnh Ẩn Dụ)",
     sync_mode_choice: str = "Tự động (Theo phụ đề Whisper)",
     num_scenes_slider: int = 15,
-    pexels_key_input: str = "",
     gemini_api_key_input: str = "",
     gemini_model_input: str = "gemini-2.5-flash",
     allow_reuse_input: bool = False,
@@ -135,7 +205,8 @@ def process_full_pipeline(
     progress = None,
     outputs_dir: str = "outputs",
     temp_dir: str = "temp_work",
-    fonts_dir: str = "fonts"
+    fonts_dir: str = "fonts",
+    pexels_key_input: str = ""
 ):
     """
     LUỒNG XỬ LÝ TOÀN DIỆN CHO 1 KỊCH BẢN (END-TO-END PIPELINE).
@@ -174,11 +245,26 @@ def process_full_pipeline(
     total_dur = float(subprocess.check_output(cmd_dur).decode().strip())
 
     is_auto_sync = "Tự động" in sync_mode_choice
-    cuts = build_retention_cuts(segments, total_dur, auto_sync_mode=is_auto_sync, max_scenes_manual=num_scenes_slider, enable_retention=retention_cuts_enabled)
+    cuts = build_retention_cuts(
+        segments=segments,
+        total_dur=total_dur,
+        auto_sync_mode=is_auto_sync,
+        max_scenes_manual=num_scenes_slider,
+        enable_retention=retention_cuts_enabled
+    )
 
-    # 4. Phân cảnh hình ảnh
-    if progress: progress(0.65, desc=f"Đang chuẩn bị {len(cuts)} phân cảnh...")
-    scene_assets, gallery_thumbs = generate_scenes_for_cuts(cuts, visual_mode, session_id, aspect_ratio, pexels_key_input, gemini_api_key_input, gemini_model_input, visual_concept, temp_dir=temp_dir, art_style=art_style)
+    # 4. Phân cảnh hình ảnh AI thuần túy (SDXL-Turbo + Micro-Batch Storyboard)
+    if progress: progress(0.65, desc=f"Đang chuẩn bị {len(cuts)} phân cảnh AI điện ảnh...")
+    scene_assets, gallery_thumbs = generate_scenes_for_cuts(
+        cuts=cuts,
+        session_id=session_id,
+        aspect_ratio=aspect_ratio,
+        gemini_api_key=gemini_api_key_input,
+        gemini_model=gemini_model_input,
+        visual_concept=visual_concept,
+        temp_dir=temp_dir,
+        art_style=art_style
+    )
 
     # 5. Dựng video MP4 hoàn thiện
     if progress: progress(0.85, desc="Đang render video MP4...")
@@ -259,8 +345,8 @@ def process_full_pipeline(
     return video_path, delivered_audio_path, srt_path, gallery_thumbs, status_msg, final_title, yt_description
 
 def process_batch_pipeline(
-    batch_files, batch_folder_path: str, aspect_ratio: str, visual_mode: str,
-    sync_mode_choice: str, num_scenes_slider: int, pexels_key_input: str,
+    batch_files, batch_folder_path: str, aspect_ratio: str,
+    sync_mode_choice: str, num_scenes_slider: int,
     allow_reuse_input: bool, voice_selected: str, title_font_size: int = 60,
     title_style: str = "✨ Điện Ảnh Sang Trọng (Chữ Trắng Đổ Bóng - Không Hộp Đen)",
     bgm_file = None, bgm_gdrive_url: str = "", bgm_volume: float = 0.15,
@@ -269,12 +355,12 @@ def process_batch_pipeline(
     tab1_gemini_key: str = "", editor_email: str = "", shared_drive_folder: str = "",
     sub_font_size: int = 18, b_gemini_key: str = "", b_gemini_model: str = "gemini-2.5-flash",
     art_style: str = "📷 Điện Ảnh Đời Thực (35mm Photorealistic - Mặc định)",
-    auto_upload_batch: bool = True, b_yt_privacy: str = "private", progress = None
+    auto_upload_batch: bool = True, b_yt_privacy: str = "private", progress = None,
+    visual_mode: str = "SDXL (AI Hình Ảnh Ẩn Dụ)", pexels_key_input: str = ""
 ):
     """
     XỬ LÝ MẺ HÀNG LOẠT (BATCH PROCESSING) TỪ DANH SÁCH FILE HOẶC THƯ MỤC.
     """
-    # Gom danh sách kịch bản
     all_scripts = []
     if batch_files:
         for f in batch_files:
@@ -317,7 +403,6 @@ def process_batch_pipeline(
             visual_mode=visual_mode,
             sync_mode_choice=sync_mode_choice,
             num_scenes_slider=num_scenes_slider,
-            pexels_key_input=pexels_key_input,
             gemini_api_key_input=effective_key,
             gemini_model_input=b_gemini_model,
             allow_reuse_input=allow_reuse_input,
@@ -347,7 +432,7 @@ def process_batch_pipeline(
             last_desc = desc
             if thumbs:
                 all_thumbs.extend(thumbs[:2])
-            
+
             yt_info = ""
             if auto_upload_batch and p_status:
                 for line in p_status.splitlines():

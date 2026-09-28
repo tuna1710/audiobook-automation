@@ -121,9 +121,8 @@ audiobook-automation/
 │   │   ├── whisper_aligner.py  # Thuật toán Hybrid Alignment (difflib) chống lệch sub
 │   │   ├── formatter.py        # Khống chế subtitle tối đa 2 dòng, ngắt câu thông minh
 │   │   └── chapters.py         # Tự động tính toán & ghi đè YouTube Timestamps
-│   ├── ai_director/            # 🧠 Gemini AI Prompt Enhancer, Pexels Rotator, SDXL Engine
+│   ├── ai_director/            # 🧠 Gemini AI Prompt Enhancer, SDXL Photorealistic, SDXL Engine
 │   │   ├── gemini_client.py    # Kết nối Gemini Flash/Pro tối ưu câu lệnh thị giác
-│   │   ├── pexels_rotator.py   # Cụm xoay tua đa khóa Pexels API tải video stock
 │   │   └── sdxl_engine.py      # Sinh ảnh ẩn dụ AI bằng SDXL / SD-Turbo 16:9 & 9:16
 │   ├── video/                  # 🎬 Động cơ Dựng phim (FFmpeg Video Engine)
 │   │   ├── audio_mixer.py      # Hòa âm nhạc nền BGM, cân bằng âm lượng tự động
@@ -194,7 +193,7 @@ pip install -r requirements.txt
 
 # 4. Thiết lập file cấu hình bí mật .env
 copy .env.example .env
-# Mở file .env và điền GEMINI_API_KEY, PEXELS_API_KEYS của bạn
+# Mở file .env và điền GEMINI_API_KEY của bạn
 
 # 5. Khởi chạy Web Studio
 python main.py
