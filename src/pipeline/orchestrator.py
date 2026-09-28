@@ -272,10 +272,11 @@ def process_batch_pipeline(
     all_thumbs = []
     last_title = ""
     last_desc = ""
+    batch_logs = []
 
     for idx, (fname, content) in enumerate(all_scripts, 1):
         if progress: progress(idx / len(all_scripts), desc=f"Đang làm mẻ: Tập {idx}/{len(all_scripts)} ({fname})...")
-        v_p, a_p, s_p, thumbs, _, tit, desc = process_full_pipeline(
+        v_p, a_p, s_p, thumbs, p_status, tit, desc = process_full_pipeline(
             script_input=content,
             aspect_ratio=aspect_ratio,
             visual_mode=visual_mode,
@@ -310,7 +311,18 @@ def process_batch_pipeline(
             last_desc = desc
             if thumbs:
                 all_thumbs.extend(thumbs[:2])
+            
+            yt_info = ""
+            if auto_upload_batch and p_status:
+                for line in p_status.splitlines():
+                    if any(k in line for k in ["YOUTUBE", "youtu.be", "Video ID", "LÊN LỊCH", "Lỗi", "Thumbnail"]):
+                        yt_info += "\n   " + line.strip()
+            batch_logs.append(f"✅ [{idx}/{len(all_scripts)}] '{fname}' -> {os.path.basename(v_p)}{yt_info}")
+        else:
+            batch_logs.append(f"❌ [{idx}/{len(all_scripts)}] '{fname}': Thất bại!")
 
-    summary = f"🎉 HOÀN THÀNH MẺ BATCH: {len(created_videos)}/{len(all_scripts)} video thành công!"
+    mode_desc = " (ĐÃ TỰ ĐỘNG ĐĂNG YOUTUBE CHO CẢ MẺ)" if auto_upload_batch else " (Chỉ Tạo Video)"
+    delimiter = "\n\n"
+    summary = f"🎉 HOÀN THÀNH MẺ BATCH: {len(created_videos)}/{len(all_scripts)} video thành công!{mode_desc}\n\n" + delimiter.join(batch_logs)
     last_v = created_videos[-1] if created_videos else None
     return last_v, last_audio, last_srt, all_thumbs, summary, last_title, last_desc

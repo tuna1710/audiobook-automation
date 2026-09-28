@@ -60,10 +60,10 @@ def create_gradio_app(default_gemini_key: str = "", default_pexels_key: str = ""
     """
     sample_time_vn = get_sample_tomorrow_time()
 
-    with gr.Blocks(title="Audiobook Automation AI Studio V19.7", theme=gr.themes.Soft()) as demo:
+    with gr.Blocks(title="Audiobook Automation AI Studio V19.7") as demo:
         gr.Markdown(
             "# 🎙️ AUDIOBOOK AUTOMATION STUDIO V19.7\n"
-            "### 🎬 Sản Xuất Video Essay & Audiobook Tự Động: VieNeu-TTS 48kHz | SDXL Photorealism | Whisper | CTR Booster Thumbnail | YouTube Auto Publish"
+            "### 🎬 Sản Xuất Video Essay & Audiobook Tự Động: VieNeu-TTS 48kHz | SDXL Photorealism | Whisper | CTR Booster Thumbnail | 1-Click YouTube Auto Publish"
         )
 
         with gr.Tabs():
@@ -134,14 +134,15 @@ def create_gradio_app(default_gemini_key: str = "", default_pexels_key: str = ""
                                 waveform_dropdown = gr.Dropdown(choices=WAVEFORM_STYLES, value=WAVEFORM_STYLES[0], label="Hiệu ứng sóng âm:")
                                 sub_size_slider = gr.Slider(minimum=14, maximum=40, value=18, step=1, label="🔤 Cỡ chữ Phụ đề (Mặc định 18):")
 
-                        with gr.Accordion("🚀 TỰ ĐỘNG ĐĂNG YOUTUBE & BÁO CÁO NHÓM (1-CLICK AUTO UPLOAD)", open=False):
-                            auto_upload_cb = gr.Checkbox(label="Tự động Upload lên YouTube sau khi render xong", value=False)
+                        with gr.Accordion("🚀 CẤU HÌNH YOUTUBE & BÁO CÁO (KHI BẤM NÚT ĐĂNG YOUTUBE)", open=False):
                             with gr.Row():
                                 yt_privacy_dropdown = gr.Dropdown(choices=["private", "unlisted", "public"], value="private", label="Chế độ riêng tư:")
                                 editor_email_box = gr.Textbox(label="Email người làm:")
                                 shared_drive_box = gr.Textbox(label="Thư mục báo cáo CSV (Google Drive / Local):", value="outputs")
 
-                        generate_btn = gr.Button("🔥 BẮT ĐẦU SẢN XUẤT VIDEO HOÀN THIỆN", variant="primary", size="lg")
+                        with gr.Row():
+                            generate_only_btn = gr.Button("🔥 BẮT ĐẦU SẢN XUẤT (CHỈ TẠO VIDEO)", variant="secondary", size="lg", scale=1)
+                            generate_and_upload_btn = gr.Button("🚀 1-CLICK: TẠO VIDEO & TỰ ĐỘNG ĐĂNG YOUTUBE LUÔN", variant="primary", size="lg", scale=1)
 
                     with gr.Column(scale=5):
                         video_output = gr.Video(label="🎬 Video MP4 Thành Phẩm:")
@@ -175,11 +176,32 @@ def create_gradio_app(default_gemini_key: str = "", default_pexels_key: str = ""
                         b_voice_dropdown = gr.Dropdown(choices=PRESET_VOICES, value="Thiền Tâm Đức", label="Giọng Đọc Cho Cả Mẻ:")
                         b_sub_size = gr.Slider(minimum=14, maximum=40, value=18, step=1, label="🔤 Cỡ chữ Phụ đề Batch (Mặc định 18):")
 
-                        batch_btn = gr.Button("🚀 BẮT ĐẦU CHẠY CẢ MẺ HÀNG LOẠT", variant="primary", size="lg")
+                        with gr.Accordion("🚀 CẤU HÌNH YOUTUBE CHO CẢ MẺ (1-CLICK BATCH UPLOAD)", open=True):
+                            with gr.Row():
+                                b_yt_privacy = gr.Dropdown(
+                                    choices=["private", "unlisted", "public"],
+                                    value="private",
+                                    label="Chế độ riêng tư YouTube khi Upload Batch:",
+                                    scale=1
+                                )
+                                b_editor_email = gr.Textbox(
+                                    label="📧 Email Người Phụ Trách:",
+                                    placeholder="ví dụ: admin@gmail.com",
+                                    scale=1
+                                )
+                                b_shared_drive = gr.Textbox(
+                                    label="📂 Thư mục báo cáo CSV (Local / Google Drive):",
+                                    value="outputs",
+                                    scale=1
+                                )
+
+                        with gr.Row():
+                            batch_run_only_btn = gr.Button("📦 BẮT ĐẦU CHẠY MẺ BATCH (CHỈ TẠO VIDEO)", variant="secondary", size="lg", scale=1)
+                            batch_run_and_upload_btn = gr.Button("🚀 1-CLICK BATCH: TẠO XONG 1 VIDEO LÀ UPLOAD YOUTUBE LUÔN", variant="primary", size="lg", scale=1)
 
                     with gr.Column(scale=5):
                         b_video_out = gr.Video(label="🎬 Video MP4 hoàn tất gần nhất:")
-                        b_status_out = gr.Textbox(label="📊 Tiến độ toàn bộ mẻ:", lines=8)
+                        b_status_out = gr.Textbox(label="📊 Tiến độ toàn bộ mẻ & Kết quả Đăng YouTube:", lines=12)
 
             # ==========================================================
             # TAB 3: ĐĂNG & LÊN LỊCH PHÁT HÀNH YOUTUBE (OAUTH2 STUDIO)
@@ -268,43 +290,136 @@ def create_gradio_app(default_gemini_key: str = "", default_pexels_key: str = ""
         # ==========================================================
         # EVENT BINDINGS (KẾT NỐI SỰ KIỆN TƯƠNG TÁC)
         # ==========================================================
-        # 1. Đồng bộ Tab 1 kết quả sang Tab 3
-        generate_btn.click(
-            fn=process_full_pipeline,
-            inputs=[
-                script_box, aspect_ratio_radio, visual_mode_dropdown, sync_mode_dropdown,
-                num_scenes_slider, pexels_key_box, gemini_key_box, gemini_model_dropdown,
-                allow_reuse_box, voice_dropdown, topic_title_box, title_size_slider,
-                title_style_dropdown, bgm_upload, bgm_gdrive_box, bgm_vol_slider,
-                add_sub_cb, sub_color_dropdown, waveform_dropdown, gr.State(True),
-                sub_size_slider, auto_upload_cb, yt_privacy_dropdown, editor_email_box,
-                shared_drive_box
-            ],
+        # 1. TAB 1: SẢN XUẤT ĐƠN LẺ (CHỈ TẠO VIDEO vs 1-CLICK TẠO & ĐĂNG YOUTUBE)
+        def handle_tab1(
+            script, ratio, visual_mode, sync_mode, num_scenes,
+            pexels_key, gemini_key, gemini_model, allow_reuse, voice,
+            topic_title, title_size, title_style, bgm_up, bgm_gd,
+            bgm_vol, add_sub, sub_color, waveform, sub_size,
+            privacy, email, shared_folder, auto_up
+        ):
+            return process_full_pipeline(
+                script_input=script,
+                aspect_ratio=ratio,
+                visual_mode=visual_mode,
+                sync_mode_choice=sync_mode,
+                num_scenes_slider=num_scenes,
+                pexels_key_input=pexels_key,
+                gemini_api_key_input=gemini_key,
+                gemini_model_input=gemini_model,
+                allow_reuse_input=allow_reuse,
+                voice_selected=voice,
+                topic_title_custom=topic_title,
+                title_font_size=title_size,
+                title_style=title_style,
+                bgm_file=bgm_up,
+                bgm_gdrive_url=bgm_gd,
+                bgm_volume=bgm_vol,
+                add_subtitles=add_sub,
+                sub_color=sub_color,
+                waveform_style=waveform,
+                retention_cuts_enabled=True,
+                sub_font_size=sub_size,
+                auto_upload_yt=auto_up,
+                yt_privacy=privacy,
+                editor_email=email,
+                shared_drive_folder=shared_folder
+            )
+
+        tab1_inputs_list = [
+            script_box, aspect_ratio_radio, visual_mode_dropdown, sync_mode_dropdown,
+            num_scenes_slider, pexels_key_box, gemini_key_box, gemini_model_dropdown,
+            allow_reuse_box, voice_dropdown, topic_title_box, title_size_slider,
+            title_style_dropdown, bgm_upload, bgm_gdrive_box, bgm_vol_slider,
+            add_sub_cb, sub_color_dropdown, waveform_dropdown, sub_size_slider,
+            yt_privacy_dropdown, editor_email_box, shared_drive_box
+        ]
+
+        # Nút 1: Chỉ tạo video
+        generate_only_btn.click(
+            fn=lambda *args: handle_tab1(*args, False),
+            inputs=tab1_inputs_list,
             outputs=[
                 video_output, audio_output, srt_output, gallery_output,
                 status_output, display_title, display_desc
             ]
         )
 
-        batch_btn.click(
-            fn=process_batch_pipeline,
-            inputs=[
-                batch_files_box, batch_folder_box, b_aspect_ratio,
-                gr.State("SDXL (AI Hình Ảnh Ẩn Dụ)"), gr.State("Tự động (Theo phụ đề Whisper)"),
-                gr.State(15), pexels_key_box, gr.State(False), b_voice_dropdown,
-                title_size_slider, title_style_dropdown, bgm_upload, bgm_gdrive_box,
-                bgm_vol_slider, add_sub_cb, sub_color_dropdown, waveform_dropdown,
-                gr.State(True), gemini_key_box, editor_email_box, shared_drive_box,
-                b_sub_size, gemini_key_box, gemini_model_dropdown, auto_upload_cb,
-                yt_privacy_dropdown
-            ],
+        # Nút 2: 1-Click tạo & tự đăng YouTube luôn
+        generate_and_upload_btn.click(
+            fn=lambda *args: handle_tab1(*args, True),
+            inputs=tab1_inputs_list,
             outputs=[
-                b_video_out, audio_output, srt_output, gallery_output,
-                b_status_out, display_title, display_desc
+                video_output, audio_output, srt_output, gallery_output,
+                status_output, display_title, display_desc
             ]
         )
 
-        # 2. TAB 3: Các nút tiện ích
+        # 2. TAB 2: SẢN XUẤT HÀNG LOẠT (CHỈ TẠO VIDEO vs 1-CLICK TẠO & ĐĂNG YOUTUBE CẢ MẺ)
+        def handle_tab2(
+            batch_files, batch_folder, ratio, voice, sub_size,
+            privacy, email, shared_folder,
+            pexels_key, gemini_key, gemini_model,
+            title_size, title_style, bgm_up, bgm_gd, bgm_vol,
+            add_sub, sub_color, waveform,
+            auto_up
+        ):
+            return process_batch_pipeline(
+                batch_files=batch_files,
+                batch_folder_path=batch_folder,
+                aspect_ratio=ratio,
+                visual_mode="SDXL (AI Hình Ảnh Ẩn Dụ)",
+                sync_mode_choice="Tự động (Theo phụ đề Whisper)",
+                num_scenes_slider=15,
+                pexels_key_input=pexels_key,
+                allow_reuse_input=False,
+                voice_selected=voice,
+                title_font_size=title_size,
+                title_style=title_style,
+                bgm_file=bgm_up,
+                bgm_gdrive_url=bgm_gd,
+                bgm_volume=bgm_vol,
+                add_subtitles=add_sub,
+                sub_color=sub_color,
+                waveform_style=waveform,
+                retention_cuts_enabled=True,
+                tab1_gemini_key=gemini_key,
+                editor_email=email,
+                shared_drive_folder=shared_folder,
+                sub_font_size=sub_size,
+                b_gemini_key=gemini_key,
+                b_gemini_model=gemini_model,
+                auto_upload_batch=auto_up,
+                b_yt_privacy=privacy
+            )
+
+        tab2_inputs_list = [
+            batch_files_box, batch_folder_box, b_aspect_ratio, b_voice_dropdown, b_sub_size,
+            b_yt_privacy, b_editor_email, b_shared_drive,
+            pexels_key_box, gemini_key_box, gemini_model_dropdown,
+            title_size_slider, title_style_dropdown, bgm_upload, bgm_gdrive_box, bgm_vol_slider,
+            add_sub_cb, sub_color_dropdown, waveform_dropdown
+        ]
+
+        # Nút 1: Chạy mẻ chỉ tạo video
+        batch_run_only_btn.click(
+            fn=lambda *args: handle_tab2(*args, False),
+            inputs=tab2_inputs_list,
+            outputs=[
+                b_video_out, b_status_out
+            ]
+        )
+
+        # Nút 2: 1-Click BATCH: Tạo xong 1 video là upload YouTube luôn!
+        batch_run_and_upload_btn.click(
+            fn=lambda *args: handle_tab2(*args, True),
+            inputs=tab2_inputs_list,
+            outputs=[
+                b_video_out, b_status_out
+            ]
+        )
+
+        # 3. TAB 3: Các nút tiện ích
         btn_fill_sample.click(
             fn=get_sample_tomorrow_time,
             outputs=[custom_sched_time_box]
@@ -327,7 +442,7 @@ def create_gradio_app(default_gemini_key: str = "", default_pexels_key: str = ""
             outputs=[token_status_box]
         )
 
-        # 3. TAB 3: Logic xử lý tải lên YouTube
+        # 4. TAB 3: Logic xử lý tải lên YouTube
         def handle_tab3_manual_upload(
             source_mode: str,
             tab1_video: Any,
