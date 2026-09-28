@@ -8,7 +8,12 @@ from datetime import datetime, timezone, timedelta
 
 from ..tts import extract_script_components, clean_voice_name, get_tts_engine
 from ..subtitles import extract_whisper_segments_and_srt, recalculate_and_inject_youtube_chapters
-from ..ai_director import enhance_visual_prompt_gemini, PexelsRotator, generate_sdxl_metaphor_image
+from ..ai_director import (
+    enhance_visual_prompt_gemini,
+    generate_micro_batch_visual_prompts,
+    PexelsRotator,
+    generate_sdxl_metaphor_image
+)
 from ..video import handle_background_music, generate_ctr_booster_thumbnail, render_ultimate_video
 from ..youtube import upload_to_youtube
 
@@ -44,12 +49,30 @@ def build_retention_cuts(segments, total_dur: float, auto_sync_mode: bool = True
 def generate_scenes_for_cuts(cuts, visual_mode: str, session_id: str, aspect_ratio: str, pexels_keys: str, gemini_api_key: str, gemini_model: str, visual_concept: str, temp_dir: str = "temp_work", art_style: str = "cinematic"):
     """
     Chuẩn bị tài nguyên hình ảnh/video cho từng phân cảnh.
+    Sử dụng Micro-Batch Storyboard (3 cảnh / 1 request) để:
+    - Giảm số lượt gọi Gemini từ 15-20 xuống chỉ còn 3-5 requests (< 10 requests).
+    - Duy trì liên kết thị giác & đạo diễn điện ảnh (Wide -> Medium -> Close-up).
+    - Ngăn ngừa lỗi 429 Quota Exceeded và tối ưu hóa thời gian sinh ảnh.
     """
     os.makedirs(temp_dir, exist_ok=True)
     is_vertical = "9:16" in aspect_ratio
     rotator = PexelsRotator(pexels_keys)
     assets = []
     thumbs = []
+
+    # Tiền xử lý kịch bản phân cảnh Micro-Batch nếu dùng SDXL hoặc chế độ AI
+    prompts = []
+    if "Pexels" not in visual_mode or not pexels_keys:
+        cut_texts = [cut.get("text", "") for cut in cuts]
+        print(f"[AI Director] Bắt đầu Micro-Batch Storyboard ({len(cut_texts)} cảnh, Style: {art_style})...")
+        prompts = generate_micro_batch_visual_prompts(
+            scenes=cut_texts,
+            visual_concept=visual_concept,
+            api_key=gemini_api_key,
+            model_name=gemini_model,
+            art_style=art_style,
+            batch_size=3
+        )
 
     for i, cut in enumerate(cuts):
         asset_path = os.path.join(temp_dir, f"asset_{session_id}_{i}.jpg")
@@ -63,15 +86,16 @@ def generate_scenes_for_cuts(cuts, visual_mode: str, session_id: str, aspect_rat
                 assets.append(video_asset)
                 continue
 
-        # SDXL hoặc Fallback
-        prompt = enhance_visual_prompt_gemini(cut.get("text", ""), visual_concept, gemini_api_key, gemini_model, art_style=art_style)
+        # Lấy prompt đã được tối ưu từ Micro-Batch hoặc fallback
+        if i < len(prompts) and prompts[i]:
+            prompt = prompts[i]
+        else:
+            prompt = enhance_visual_prompt_gemini(cut.get("text", ""), visual_concept, gemini_api_key, gemini_model, art_style=art_style)
+
         img_out = generate_sdxl_metaphor_image(prompt, aspect_ratio, asset_path, scene_idx=i)
         assets.append(img_out)
         if len(thumbs) < 4:
             thumbs.append(img_out)
-        # Giãn cách 0.8s để bảo toàn hạn ngạch 20 RPM Gemini Free Tier
-        if gemini_api_key and i < len(cuts) - 1:
-            time.sleep(0.8)
 
     return assets, thumbs
 
