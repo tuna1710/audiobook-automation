@@ -40,6 +40,7 @@ def get_sdxl_pipeline(device: str = None):
 def sanitize_prompt_for_realism(prompt: str) -> str:
     """
     Chuẩn hóa prompt để loại bỏ các từ kích hoạt lỗi nhân bản vật thể hoặc dị tật ngón tay.
+    Đồng thời khống chế chặt chẽ độ dài < 45 từ để không bao giờ vượt ngưỡng 77 CLIP tokens.
     """
     p = prompt.strip()
 
@@ -54,9 +55,16 @@ def sanitize_prompt_for_realism(prompt: str) -> str:
     p = re.sub(r'\bhands\b', 'silhouette', p, flags=re.IGNORECASE)
     p = re.sub(r'\bfingers\b', 'detail', p, flags=re.IGNORECASE)
 
-    # Thêm từ khóa tăng cường tính chân thực và bố cục điện ảnh nếu chưa có
-    if "photograph" not in p.lower() and "cinematic" not in p.lower():
-        p += ", award-winning 35mm photograph, cinematic lighting, sharp focus, 8k photorealism"
+    # Khống chế tối đa 42 từ để đảm bảo CLIP Tokenizer không bao giờ bị tràn 77 tokens
+    words = p.split()
+    if len(words) > 42:
+        p = " ".join(words[:42])
+
+    # Nếu prompt chưa có bất kỳ từ khóa phong cách nào, mới thêm mặc định 35mm
+    style_indicators = ["sketch", "pencil", "drawing", "ink", "watercolor", "comic", "noir", "photograph", "cinematic"]
+    if not any(ind in p.lower() for ind in style_indicators):
+        p += ", cinematic 35mm photograph, sharp focus, 8k"
+
     return p
 
 
@@ -81,9 +89,6 @@ def generate_sdxl_metaphor_image(
     final_w, final_h = (1080, 1920) if is_vertical else (1920, 1080)
 
     safe_prompt = sanitize_prompt_for_realism(clean_prompt)
-    words = safe_prompt.split()
-    if len(words) > 50:
-        safe_prompt = " ".join(words[:50])
 
     if pipe is None:
         try:
@@ -94,7 +99,7 @@ def generate_sdxl_metaphor_image(
     if pipe is not None:
         try:
             generator = torch.Generator(device=pipe.device).manual_seed(seed if seed is not None else (42 + scene_idx))
-            # Sử dụng 2 bước khử nhiễu (steps=2) để cấu trúc xe và giải phẫu người sắc nét hơn hẳn 1 bước
+            # 2 bước suy luận (steps=2) giúp giải phóng chi tiết sắc nét và không tràn token
             img = pipe(
                 prompt=safe_prompt,
                 num_inference_steps=max(steps, 2),

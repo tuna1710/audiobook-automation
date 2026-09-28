@@ -41,7 +41,7 @@ def build_retention_cuts(segments, total_dur: float, auto_sync_mode: bool = True
             })
     return cuts
 
-def generate_scenes_for_cuts(cuts, visual_mode: str, session_id: str, aspect_ratio: str, pexels_keys: str, gemini_api_key: str, gemini_model: str, visual_concept: str, temp_dir: str = "temp_work"):
+def generate_scenes_for_cuts(cuts, visual_mode: str, session_id: str, aspect_ratio: str, pexels_keys: str, gemini_api_key: str, gemini_model: str, visual_concept: str, temp_dir: str = "temp_work", art_style: str = "cinematic"):
     """
     Chuẩn bị tài nguyên hình ảnh/video cho từng phân cảnh.
     """
@@ -64,7 +64,7 @@ def generate_scenes_for_cuts(cuts, visual_mode: str, session_id: str, aspect_rat
                 continue
 
         # SDXL hoặc Fallback
-        prompt = enhance_visual_prompt_gemini(cut.get("text", ""), visual_concept, gemini_api_key, gemini_model)
+        prompt = enhance_visual_prompt_gemini(cut.get("text", ""), visual_concept, gemini_api_key, gemini_model, art_style=art_style)
         img_out = generate_sdxl_metaphor_image(prompt, aspect_ratio, asset_path, scene_idx=i)
         assets.append(img_out)
         if len(thumbs) < 4:
@@ -94,6 +94,7 @@ def process_full_pipeline(
     waveform_style: str = "Tắt",
     retention_cuts_enabled: bool = True,
     sub_font_size: int = 18,
+    art_style: str = "📷 Điện Ảnh Đời Thực (35mm Photorealistic - Mặc định)",
     auto_upload_yt: bool = False,
     yt_privacy: str = "private",
     editor_email: str = "",
@@ -144,7 +145,7 @@ def process_full_pipeline(
 
     # 4. Phân cảnh hình ảnh
     if progress: progress(0.65, desc=f"Đang chuẩn bị {len(cuts)} phân cảnh...")
-    scene_assets, gallery_thumbs = generate_scenes_for_cuts(cuts, visual_mode, session_id, aspect_ratio, pexels_key_input, gemini_api_key_input, gemini_model_input, visual_concept, temp_dir=temp_dir)
+    scene_assets, gallery_thumbs = generate_scenes_for_cuts(cuts, visual_mode, session_id, aspect_ratio, pexels_key_input, gemini_api_key_input, gemini_model_input, visual_concept, temp_dir=temp_dir, art_style=art_style)
 
     # 5. Dựng video MP4 hoàn thiện
     if progress: progress(0.85, desc="Đang render video MP4...")
@@ -234,6 +235,7 @@ def process_batch_pipeline(
     waveform_style: str = "Tắt", retention_cuts_enabled: bool = True,
     tab1_gemini_key: str = "", editor_email: str = "", shared_drive_folder: str = "",
     sub_font_size: int = 18, b_gemini_key: str = "", b_gemini_model: str = "gemini-2.5-flash",
+    art_style: str = "📷 Điện Ảnh Đời Thực (35mm Photorealistic - Mặc định)",
     auto_upload_batch: bool = True, b_yt_privacy: str = "private", progress = None
 ):
     """
@@ -298,6 +300,7 @@ def process_batch_pipeline(
             waveform_style=waveform_style,
             retention_cuts_enabled=retention_cuts_enabled,
             sub_font_size=sub_font_size,
+            art_style=art_style,
             auto_upload_yt=auto_upload_batch,
             yt_privacy=b_yt_privacy,
             editor_email=editor_email,

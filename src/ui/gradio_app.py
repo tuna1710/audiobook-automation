@@ -33,6 +33,13 @@ WAVEFORM_STYLES = [
     "Dải Màu Gradient (Sóng neon Cyan/Tím)"
 ]
 
+ART_STYLE_CHOICES = [
+    "📷 Điện Ảnh Đời Thực (35mm Photorealistic - Mặc định)",
+    "✏️ Phác Thảo Bút Chì Đen Trắng (Pencil & Charcoal Sketch)",
+    "📜 Tranh Thủy Mặc Cổ Trang (Ink Wash & Watercolor)",
+    "🕵️ Truyện Tranh Noir Cổ Điển (Vintage Graphic Novel Noir)"
+]
+
 
 def get_available_rendered_videos(outputs_dir: str = "outputs") -> List[str]:
     """
@@ -56,14 +63,17 @@ def get_sample_tomorrow_time() -> str:
 
 def create_gradio_app(default_gemini_key: str = "", default_pexels_key: str = ""):
     """
-    Xây dựng giao diện Web Gradio V19.7 đa nền tảng với đầy đủ 3 Tab chuyên nghiệp.
+    Xây dựng giao diện Web Gradio V19.7 đa nền tảng với đầy đủ 3 Tab chuyên nghiệp:
+    - Tab 1: Sản xuất đơn lẻ với bộ chọn Phong Cách Nghệ Thuật (Art Style)
+    - Tab 2: Sản xuất hàng loạt tích hợp cài đặt API Key & Phong cách riêng cho cả mẻ
+    - Tab 3: Trung tâm phân phối YouTube Studio OAuth2
     """
     sample_time_vn = get_sample_tomorrow_time()
 
     with gr.Blocks(title="Audiobook Automation AI Studio V19.7") as demo:
         gr.Markdown(
             "# 🎙️ AUDIOBOOK AUTOMATION STUDIO V19.7\n"
-            "### 🎬 Sản Xuất Video Essay & Audiobook Tự Động: VieNeu-TTS 48kHz | SDXL Photorealism | Whisper | CTR Booster Thumbnail | 1-Click YouTube Auto Publish"
+            "### 🎬 Sản Xuất Video Essay & Audiobook Tự Động: VieNeu-TTS 48kHz | SDXL Multi-Art Styles | Whisper | 1-Click YouTube Auto Publish"
         )
 
         with gr.Tabs():
@@ -92,8 +102,17 @@ def create_gradio_app(default_gemini_key: str = "", default_pexels_key: str = ""
                             visual_mode_dropdown = gr.Dropdown(
                                 choices=["SDXL (AI Hình Ảnh Ẩn Dụ)", "Pexels (Video Stock Chuyển Động)", "Pexels Ưu Tiên (Thiếu sẽ bù SDXL)"],
                                 value="SDXL (AI Hình Ảnh Ẩn Dụ)",
-                                label="🎨 Chế Độ Thị Giác:"
+                                label="🎨 Nguồn Tư Liệu Thị Giác:",
+                                scale=2
                             )
+                            art_style_dropdown = gr.Dropdown(
+                                choices=ART_STYLE_CHOICES,
+                                value=ART_STYLE_CHOICES[0],
+                                label="🖌️ Phong Cách Nghệ Thuật (Art Style):",
+                                scale=3
+                            )
+
+                        with gr.Row():
                             sync_mode_dropdown = gr.Dropdown(
                                 choices=["Tự động (Theo phụ đề Whisper)", "Thủ công (Chia đều kịch bản)"],
                                 value="Tự động (Theo phụ đề Whisper)",
@@ -173,8 +192,30 @@ def create_gradio_app(default_gemini_key: str = "", default_pexels_key: str = ""
                             label="📱 Định Dạng Cho Cả Mẻ:"
                         )
 
-                        b_voice_dropdown = gr.Dropdown(choices=PRESET_VOICES, value="Thiền Tâm Đức", label="Giọng Đọc Cho Cả Mẻ:")
-                        b_sub_size = gr.Slider(minimum=14, maximum=40, value=18, step=1, label="🔤 Cỡ chữ Phụ đề Batch (Mặc định 18):")
+                        with gr.Row():
+                            b_voice_dropdown = gr.Dropdown(choices=PRESET_VOICES, value="Thiền Tâm Đức", label="Giọng Đọc Cho Cả Mẻ:", scale=2)
+                            b_art_style = gr.Dropdown(choices=ART_STYLE_CHOICES, value=ART_STYLE_CHOICES[0], label="🖌️ Phong Cách Cho Cả Mẻ:", scale=3)
+                            b_sub_size = gr.Slider(minimum=14, maximum=40, value=18, step=1, label="🔤 Cỡ chữ Phụ đề Batch:", scale=2)
+
+                        with gr.Accordion("⚙️ CÀI ĐẶT API KEYS CHO MẺ BATCH (Tự động lấy từ Tab 1 nếu để trống)", open=False):
+                            with gr.Row():
+                                b_gemini_key_box = gr.Textbox(
+                                    label="Gemini API Key (Batch):",
+                                    value=default_gemini_key,
+                                    placeholder="Để trống sẽ tự động lấy từ Tab 1...",
+                                    type="password"
+                                )
+                                b_gemini_model_dropdown = gr.Dropdown(
+                                    choices=["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.5-pro"],
+                                    value="gemini-2.5-flash",
+                                    label="Gemini Model:"
+                                )
+                            with gr.Row():
+                                b_pexels_key_box = gr.Textbox(
+                                    label="Pexels API Keys (Batch):",
+                                    value=default_pexels_key,
+                                    placeholder="Để trống sẽ tự động lấy từ Tab 1..."
+                                )
 
                         with gr.Accordion("🚀 CẤU HÌNH YOUTUBE CHO CẢ MẺ (1-CLICK BATCH UPLOAD)", open=True):
                             with gr.Row():
@@ -290,9 +331,9 @@ def create_gradio_app(default_gemini_key: str = "", default_pexels_key: str = ""
         # ==========================================================
         # EVENT BINDINGS (KẾT NỐI SỰ KIỆN TƯƠNG TÁC)
         # ==========================================================
-        # 1. TAB 1: SẢN XUẤT ĐƠN LẺ (CHỈ TẠO VIDEO vs 1-CLICK TẠO & ĐĂNG YOUTUBE)
+        # 1. TAB 1: SẢN XUẤT ĐƠN LẺ
         def handle_tab1(
-            script, ratio, visual_mode, sync_mode, num_scenes,
+            script, ratio, visual_mode, art_style, sync_mode, num_scenes,
             pexels_key, gemini_key, gemini_model, allow_reuse, voice,
             topic_title, title_size, title_style, bgm_up, bgm_gd,
             bgm_vol, add_sub, sub_color, waveform, sub_size,
@@ -320,6 +361,7 @@ def create_gradio_app(default_gemini_key: str = "", default_pexels_key: str = ""
                 waveform_style=waveform,
                 retention_cuts_enabled=True,
                 sub_font_size=sub_size,
+                art_style=art_style,
                 auto_upload_yt=auto_up,
                 yt_privacy=privacy,
                 editor_email=email,
@@ -327,7 +369,7 @@ def create_gradio_app(default_gemini_key: str = "", default_pexels_key: str = ""
             )
 
         tab1_inputs_list = [
-            script_box, aspect_ratio_radio, visual_mode_dropdown, sync_mode_dropdown,
+            script_box, aspect_ratio_radio, visual_mode_dropdown, art_style_dropdown, sync_mode_dropdown,
             num_scenes_slider, pexels_key_box, gemini_key_box, gemini_model_dropdown,
             allow_reuse_box, voice_dropdown, topic_title_box, title_size_slider,
             title_style_dropdown, bgm_upload, bgm_gdrive_box, bgm_vol_slider,
@@ -355,15 +397,21 @@ def create_gradio_app(default_gemini_key: str = "", default_pexels_key: str = ""
             ]
         )
 
-        # 2. TAB 2: SẢN XUẤT HÀNG LOẠT (CHỈ TẠO VIDEO vs 1-CLICK TẠO & ĐĂNG YOUTUBE CẢ MẺ)
+        # 2. TAB 2: SẢN XUẤT HÀNG LOẠT
         def handle_tab2(
-            batch_files, batch_folder, ratio, voice, sub_size,
+            batch_files, batch_folder, ratio, voice, art_style, sub_size,
             privacy, email, shared_folder,
-            pexels_key, gemini_key, gemini_model,
+            b_gemini_key, b_gemini_model, b_pexels_key,
+            tab1_gemini_key, tab1_gemini_model, tab1_pexels_key,
             title_size, title_style, bgm_up, bgm_gd, bgm_vol,
             add_sub, sub_color, waveform,
             auto_up
         ):
+            # Tự động kế thừa API key từ Tab 1 nếu Tab 2 để trống
+            effective_gemini_key = b_gemini_key.strip() if b_gemini_key and b_gemini_key.strip() else tab1_gemini_key.strip()
+            effective_gemini_model = b_gemini_model if b_gemini_model else tab1_gemini_model
+            effective_pexels_key = b_pexels_key.strip() if b_pexels_key and b_pexels_key.strip() else tab1_pexels_key.strip()
+
             return process_batch_pipeline(
                 batch_files=batch_files,
                 batch_folder_path=batch_folder,
@@ -371,7 +419,7 @@ def create_gradio_app(default_gemini_key: str = "", default_pexels_key: str = ""
                 visual_mode="SDXL (AI Hình Ảnh Ẩn Dụ)",
                 sync_mode_choice="Tự động (Theo phụ đề Whisper)",
                 num_scenes_slider=15,
-                pexels_key_input=pexels_key,
+                pexels_key_input=effective_pexels_key,
                 allow_reuse_input=False,
                 voice_selected=voice,
                 title_font_size=title_size,
@@ -383,20 +431,22 @@ def create_gradio_app(default_gemini_key: str = "", default_pexels_key: str = ""
                 sub_color=sub_color,
                 waveform_style=waveform,
                 retention_cuts_enabled=True,
-                tab1_gemini_key=gemini_key,
+                tab1_gemini_key=effective_gemini_key,
                 editor_email=email,
                 shared_drive_folder=shared_folder,
                 sub_font_size=sub_size,
-                b_gemini_key=gemini_key,
-                b_gemini_model=gemini_model,
+                b_gemini_key=effective_gemini_key,
+                b_gemini_model=effective_gemini_model,
+                art_style=art_style,
                 auto_upload_batch=auto_up,
                 b_yt_privacy=privacy
             )
 
         tab2_inputs_list = [
-            batch_files_box, batch_folder_box, b_aspect_ratio, b_voice_dropdown, b_sub_size,
+            batch_files_box, batch_folder_box, b_aspect_ratio, b_voice_dropdown, b_art_style, b_sub_size,
             b_yt_privacy, b_editor_email, b_shared_drive,
-            pexels_key_box, gemini_key_box, gemini_model_dropdown,
+            b_gemini_key_box, b_gemini_model_dropdown, b_pexels_key_box,
+            gemini_key_box, gemini_model_dropdown, pexels_key_box,
             title_size_slider, title_style_dropdown, bgm_upload, bgm_gdrive_box, bgm_vol_slider,
             add_sub_cb, sub_color_dropdown, waveform_dropdown
         ]
