@@ -8,6 +8,7 @@ from .oauth_auth import (
     verify_oauth_code_and_save_token,
     find_client_secret_file,
     find_token_file,
+    resolve_file_path,
     YOUTUBE_SCOPES
 )
 from .uploader import upload_to_youtube, parse_youtube_http_error
@@ -20,6 +21,7 @@ __all__ = [
     "verify_oauth_code_and_save_token",
     "find_client_secret_file",
     "find_token_file",
+    "resolve_file_path",
     "YOUTUBE_SCOPES",
     "upload_to_youtube",
     "parse_youtube_http_error",
