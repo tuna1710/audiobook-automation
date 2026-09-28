@@ -21,39 +21,75 @@ from ..youtube import upload_to_youtube
 def build_retention_cuts(segments, total_dur: float, auto_sync_mode: bool = True, max_scenes_manual: int = 15, enable_retention: bool = True):
     """
     Xây dựng các mốc chuyển cảnh (Cuts) đồng bộ theo câu nói hoặc chia đều kịch bản.
+    Tích hợp Quy Tắc 2 Phút Vàng (Retention Rule):
+    Trong 120s đầu tiên (hook video), nếu câu thoại kéo dài >= 5.2s, tự động chẻ đôi thành
+    Part 1 (góc chính) và Part 2 (góc máy phụ) để tạo nhịp cắt nhanh, giữ chân khán giả.
+    Đồng thời căn chỉnh mốc thời gian nối tiếp (seamless) chống hở frame đen.
     """
-    cuts = []
+    raw_cuts = []
     if auto_sync_mode and segments:
         for seg in segments:
-            st = float(seg["start"])
-            et = float(seg["end"])
-            cuts.append({
-                "start": st,
-                "end": et,
-                "duration": max(0.5, et - st),
-                "text": seg.get("text", "")
-            })
+            st = float(seg.get("start", 0.0))
+            et = min(total_dur, float(seg.get("end", 0.0)))
+            dur = max(0.1, et - st)
+            txt = seg.get("text", "").strip()
+            if dur <= 0.3:
+                continue
+
+            # QUY TẮC 2 PHÚT ĐẦU: Nếu câu dài >= 5.2s trong 120s đầu, chia đôi làm 2 góc quay khác nhau!
+            if enable_retention and st < 120.0 and dur >= 5.2:
+                mid = round(st + dur / 2.0, 2)
+                raw_cuts.append({"start": st, "end": mid, "duration": round(mid - st, 2), "text": txt, "is_early": True, "part": 1})
+                raw_cuts.append({"start": mid, "end": et, "duration": round(et - mid, 2), "text": txt, "is_early": True, "part": 2})
+            else:
+                raw_cuts.append({"start": st, "end": et, "duration": round(dur, 2), "text": txt, "is_early": st < 120.0, "part": 0})
     else:
         num_scenes = max(1, int(max_scenes_manual))
         dur_step = total_dur / num_scenes
         for i in range(num_scenes):
             st = i * dur_step
             et = min(total_dur, (i + 1) * dur_step)
-            cuts.append({
-                "start": st,
-                "end": et,
-                "duration": max(0.5, et - st),
-                "text": f"Phân cảnh {i+1}"
-            })
-    return cuts
+            dur = et - st
+            if enable_retention and st < 120.0 and dur >= 5.2:
+                mid = round(st + dur / 2.0, 2)
+                raw_cuts.append({"start": st, "end": mid, "duration": round(mid - st, 2), "text": f"Phân cảnh {i+1} (Phần 1)", "is_early": True, "part": 1})
+                raw_cuts.append({"start": mid, "end": et, "duration": round(et - mid, 2), "text": f"Phân cảnh {i+1} (Phần 2)", "is_early": True, "part": 2})
+            else:
+                raw_cuts.append({"start": st, "end": et, "duration": round(dur, 2), "text": f"Phân cảnh {i+1}", "is_early": st < 120.0, "part": 0})
 
-def generate_scenes_for_cuts(cuts, visual_mode: str, session_id: str, aspect_ratio: str, pexels_keys: str, gemini_api_key: str, gemini_model: str, visual_concept: str, temp_dir: str = "temp_work", art_style: str = "cinematic"):
+    if not raw_cuts:
+        raw_cuts = [{"start": 0.0, "end": max(1.0, total_dur), "duration": max(1.0, total_dur), "text": "Toàn bộ nội dung", "is_early": True, "part": 0}]
+
+    # Căn chỉnh timeline gối khít nhau 100% (seamless)
+    final_cuts = []
+    curr_time = 0.0
+    for i, c in enumerate(raw_cuts):
+        start = curr_time
+        if i == len(raw_cuts) - 1:
+            end = total_dur
+        else:
+            end = max(start + 0.4, c["end"])
+        duration = round(end - start, 3)
+        final_cuts.append({
+            "index": i + 1,
+            "start": start,
+            "end": start + duration,
+            "duration": max(0.4, duration),
+            "text": c["text"],
+            "is_early": c["is_early"],
+            "part": c["part"]
+        })
+        curr_time = start + duration
+
+    return final_cuts
+
+def generate_scenes_for_cuts(cuts, visual_mode: str, session_id: str, aspect_ratio: str, pexels_keys: str, gemini_api_key: str, gemini_model: str, visual_concept: str, temp_dir: str = "temp_work", art_style: str = "cinematic", outputs_dir: str = "outputs"):
     """
     Chuẩn bị tài nguyên hình ảnh/video cho từng phân cảnh.
-    Sử dụng Micro-Batch Storyboard (3 cảnh / 1 request) để:
-    - Giảm số lượt gọi Gemini từ 15-20 xuống chỉ còn 3-5 requests (< 10 requests).
-    - Duy trì liên kết thị giác & đạo diễn điện ảnh (Wide -> Medium -> Close-up).
-    - Ngăn ngừa lỗi 429 Quota Exceeded và tối ưu hóa thời gian sinh ảnh.
+    Sử dụng Batch AI Director (20-25 cảnh / request qua JSON API):
+    - Tiết kiệm 85% số lượt gọi API, miễn nhiễm lỗi 429 Quota Exceeded.
+    - Giữ mạch điện ảnh liên tục và tự động đổi góc quay cho phân cảnh Part 2.
+    - Tự động xuất kịch bản prompt ra file .txt và .json trong outputs/.
     """
     os.makedirs(temp_dir, exist_ok=True)
     is_vertical = "9:16" in aspect_ratio
@@ -61,25 +97,25 @@ def generate_scenes_for_cuts(cuts, visual_mode: str, session_id: str, aspect_rat
     assets = []
     thumbs = []
 
-    # Tiền xử lý kịch bản phân cảnh Micro-Batch & pre-warm SDXL pipeline
+    # Tiền xử lý kịch bản phân cảnh qua AI Director Batch 25 cảnh
     prompts = []
     sdxl_pipe = None
     if "Pexels" not in visual_mode or not pexels_keys:
-        cut_texts = [cut.get("text", "") for cut in cuts]
-        print(f"[AI Director] Bắt đầu Micro-Batch Storyboard ({len(cut_texts)} cảnh, Style: {art_style})...")
+        print(f"[AI Director] Đang đạo diễn kịch bản ({len(cuts)} cảnh, Style: {art_style}, Batch JSON API)...")
         prompts = generate_micro_batch_visual_prompts(
-            scenes=cut_texts,
+            cuts=cuts,
             visual_concept=visual_concept,
             api_key=gemini_api_key,
             model_name=gemini_model,
             art_style=art_style,
-            batch_size=3
+            batch_size=25
         )
         try:
             sdxl_pipe = get_sdxl_pipeline()
         except Exception:
             sdxl_pipe = None
 
+    saved_prompts_meta = []
     for i, cut in enumerate(cuts):
         asset_path = os.path.join(temp_dir, f"asset_{session_id}_{i}.jpg")
         if "Pexels" in visual_mode and pexels_keys:
@@ -92,7 +128,7 @@ def generate_scenes_for_cuts(cuts, visual_mode: str, session_id: str, aspect_rat
                 assets.append(video_asset)
                 continue
 
-        # Lấy prompt đã được tối ưu từ Micro-Batch hoặc fallback
+        # Lấy prompt đã được tối ưu từ Batch JSON hoặc fallback
         if i < len(prompts) and prompts[i]:
             prompt = prompts[i]
         else:
@@ -102,6 +138,37 @@ def generate_scenes_for_cuts(cuts, visual_mode: str, session_id: str, aspect_rat
         assets.append(img_out)
         if len(thumbs) < 4:
             thumbs.append(img_out)
+
+        saved_prompts_meta.append({
+            "index": cut.get("index", i + 1),
+            "part": cut.get("part", 0),
+            "start": cut.get("start", 0.0),
+            "end": cut.get("end", 0.0),
+            "duration": cut.get("duration", 0.0),
+            "text": cut.get("text", ""),
+            "prompt": prompt
+        })
+
+    # TỰ ĐỘNG XUẤT KỊCH BẢN PROMPT RA FILE THÀNH PHẨM (.txt & .json)
+    try:
+        os.makedirs(outputs_dir, exist_ok=True)
+        txt_path = os.path.join(outputs_dir, f"prompts_{session_id}.txt")
+        json_path = os.path.join(outputs_dir, f"prompts_{session_id}.json")
+
+        with open(json_path, "w", encoding="utf-8") as jf:
+            json.dump(saved_prompts_meta, jf, ensure_ascii=False, indent=2)
+
+        with open(txt_path, "w", encoding="utf-8") as tf:
+            tf.write(f"=== KỊCH BẢN PHÂN CẢNH & PROMPT HÌNH ẢNH (SESSION {session_id}) ===\n")
+            tf.write(f"Tổng số phân cảnh: {len(saved_prompts_meta)} | Phong cách: {art_style}\n\n")
+            for item in saved_prompts_meta:
+                part_tag = " [Góc máy phụ]" if item.get("part") == 2 else ""
+                tf.write(f"[Cảnh {item['index']}{part_tag}] ({item['start']:.1f}s -> {item['end']:.1f}s | {item['duration']:.1f}s)\n")
+                tf.write(f"  - Lời thoại: {item['text']}\n")
+                tf.write(f"  - Prompt AI: {item['prompt']}\n\n")
+        print(f"✅ Đã xuất kịch bản prompt thành công vào {txt_path} và {json_path}")
+    except Exception as e:
+        print(f"⚠️ Không thể lưu log prompt: {e}")
 
     return assets, thumbs
 
