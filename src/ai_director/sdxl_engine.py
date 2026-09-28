@@ -12,6 +12,16 @@ def get_sdxl_pipeline(device: str = None):
         from diffusers import AutoPipelineForText2Image
         if device is None:
             device = "cuda" if torch.cuda.is_available() else "cpu"
+
+        # Kích hoạt Tensor Cores và cuDNN benchmark để tăng tốc ma trận FP16 trên GPU (Tesla T4)
+        if device == "cuda" and torch.cuda.is_available():
+            try:
+                torch.backends.cuda.matmul.allow_tf32 = True
+                torch.backends.cudnn.allow_tf32 = True
+                torch.backends.cudnn.benchmark = True
+            except Exception:
+                pass
+
         print(f"⏳ Đang nạp mô hình SDXL-Turbo trên {device.upper()}...")
         try:
             _GLOBAL_SDXL_PIPELINE = AutoPipelineForText2Image.from_pretrained(
@@ -21,6 +31,8 @@ def get_sdxl_pipeline(device: str = None):
             )
             if hasattr(_GLOBAL_SDXL_PIPELINE, "enable_vae_slicing"):
                 _GLOBAL_SDXL_PIPELINE.enable_vae_slicing()
+            if hasattr(_GLOBAL_SDXL_PIPELINE, "enable_vae_tiling"):
+                _GLOBAL_SDXL_PIPELINE.enable_vae_tiling()
             _GLOBAL_SDXL_PIPELINE.to(device)
             print("✅ SDXL-Turbo đã sẵn sàng hoạt động!")
         except Exception as e:
@@ -32,6 +44,8 @@ def get_sdxl_pipeline(device: str = None):
             )
             if hasattr(_GLOBAL_SDXL_PIPELINE, "enable_vae_slicing"):
                 _GLOBAL_SDXL_PIPELINE.enable_vae_slicing()
+            if hasattr(_GLOBAL_SDXL_PIPELINE, "enable_vae_tiling"):
+                _GLOBAL_SDXL_PIPELINE.enable_vae_tiling()
             _GLOBAL_SDXL_PIPELINE.to(device)
             print("✅ SD-Turbo đã sẵn sàng hoạt động!")
     return _GLOBAL_SDXL_PIPELINE

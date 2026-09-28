@@ -12,7 +12,8 @@ from ..ai_director import (
     enhance_visual_prompt_gemini,
     generate_micro_batch_visual_prompts,
     PexelsRotator,
-    generate_sdxl_metaphor_image
+    generate_sdxl_metaphor_image,
+    get_sdxl_pipeline
 )
 from ..video import handle_background_music, generate_ctr_booster_thumbnail, render_ultimate_video
 from ..youtube import upload_to_youtube
@@ -60,8 +61,9 @@ def generate_scenes_for_cuts(cuts, visual_mode: str, session_id: str, aspect_rat
     assets = []
     thumbs = []
 
-    # Tiền xử lý kịch bản phân cảnh Micro-Batch nếu dùng SDXL hoặc chế độ AI
+    # Tiền xử lý kịch bản phân cảnh Micro-Batch & pre-warm SDXL pipeline
     prompts = []
+    sdxl_pipe = None
     if "Pexels" not in visual_mode or not pexels_keys:
         cut_texts = [cut.get("text", "") for cut in cuts]
         print(f"[AI Director] Bắt đầu Micro-Batch Storyboard ({len(cut_texts)} cảnh, Style: {art_style})...")
@@ -73,6 +75,10 @@ def generate_scenes_for_cuts(cuts, visual_mode: str, session_id: str, aspect_rat
             art_style=art_style,
             batch_size=3
         )
+        try:
+            sdxl_pipe = get_sdxl_pipeline()
+        except Exception:
+            sdxl_pipe = None
 
     for i, cut in enumerate(cuts):
         asset_path = os.path.join(temp_dir, f"asset_{session_id}_{i}.jpg")
@@ -92,7 +98,7 @@ def generate_scenes_for_cuts(cuts, visual_mode: str, session_id: str, aspect_rat
         else:
             prompt = enhance_visual_prompt_gemini(cut.get("text", ""), visual_concept, gemini_api_key, gemini_model, art_style=art_style)
 
-        img_out = generate_sdxl_metaphor_image(prompt, aspect_ratio, asset_path, scene_idx=i)
+        img_out = generate_sdxl_metaphor_image(prompt, aspect_ratio, asset_path, scene_idx=i, pipe=sdxl_pipe)
         assets.append(img_out)
         if len(thumbs) < 4:
             thumbs.append(img_out)
