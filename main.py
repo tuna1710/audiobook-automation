@@ -44,9 +44,20 @@ def print_hardware_banner():
 def main():
     args = parse_args()
 
-    # Kiểm tra biến môi trường
-    gemini_key = os.environ.get("GEMINI_API_KEY", "")
-    pexels_keys = os.environ.get("PEXELS_API_KEYS", "")
+    # Kiểm tra biến môi trường & Colab Secrets (Chìa khóa 🔑)
+    gemini_key = os.environ.get("GEMINI_API_KEY", "").strip()
+    if not gemini_key:
+        try:
+            from google.colab import userdata
+            val = userdata.get("GEMINI_API_KEY")
+            if val:
+                gemini_key = str(val).strip()
+                os.environ["GEMINI_API_KEY"] = gemini_key
+                print("🔑 Đã tự động nạp GEMINI_API_KEY từ Colab Secrets (Chìa khóa 🔑)!")
+        except Exception:
+            pass
+
+    pexels_keys = os.environ.get("PEXELS_API_KEYS", "").strip()
 
     # Chế độ dòng lệnh thuần túy (CLI Headless)
     if args.cli:

@@ -68,6 +68,20 @@ def create_gradio_app(default_gemini_key: str = "", default_pexels_key: str = ""
     - Tab 2: Sản xuất hàng loạt tích hợp cài đặt API Key & Phong cách riêng cho cả mẻ
     - Tab 3: Trung tâm phân phối YouTube Studio OAuth2
     """
+    # Tự động nhận diện Gemini API Key từ Colab Secrets (chìa khóa 🔑) hoặc biến môi trường
+    colab_gemini_key = default_gemini_key.strip() if default_gemini_key else ""
+    if not colab_gemini_key:
+        colab_gemini_key = os.environ.get("GEMINI_API_KEY", "").strip()
+    if not colab_gemini_key:
+        try:
+            from google.colab import userdata
+            val = userdata.get("GEMINI_API_KEY")
+            if val:
+                colab_gemini_key = str(val).strip()
+                print("🔑 Đã tự động kết nối GEMINI_API_KEY từ Google Colab Secrets (Chìa khóa 🔑)!")
+        except Exception:
+            pass
+
     sample_time_vn = get_sample_tomorrow_time()
 
     with gr.Blocks(title="Audiobook Automation AI Studio V19.7") as demo:
@@ -122,9 +136,14 @@ def create_gradio_app(default_gemini_key: str = "", default_pexels_key: str = ""
 
                         with gr.Accordion("⚙️ CÀI ĐẶT NÂNG CAO (AI & API KEYS)", open=False):
                             with gr.Row():
-                                gemini_key_box = gr.Textbox(label="Gemini API Keys (Hỗ trợ nhiều key cách bằng dấu phẩy để nhân bội Quota):", placeholder="AIzaSy..., AIzaSy... (Tự động xoay tua chống lỗi 429)", value=default_gemini_key, type="password")
+                                gemini_key_box = gr.Textbox(
+                                    label="🔑 Google Gemini API Key (Đã tự động nạp từ Colab Secrets 🔑):" if colab_gemini_key else "🔑 Google Gemini API Key (Khuyên dùng - Miễn phí - 100% Prompt ảnh độc bản):",
+                                    placeholder="Đã tự động kết nối từ Colab Secrets (GEMINI_API_KEY)!" if colab_gemini_key else "Dán Gemini API Key (lấy miễn phí tại aistudio.google.com)...",
+                                    value=colab_gemini_key,
+                                    type="password"
+                                )
                                 gemini_model_dropdown = gr.Dropdown(
-                                    choices=["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.5-pro"],
+                                    choices=["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.5-pro", "gemini-3.5-flash"],
                                     value="gemini-2.5-flash",
                                     label="Gemini Model:"
                                 )
@@ -200,13 +219,13 @@ def create_gradio_app(default_gemini_key: str = "", default_pexels_key: str = ""
                         with gr.Accordion("⚙️ CÀI ĐẶT API KEYS CHO MẺ BATCH (Tự động lấy từ Tab 1 nếu để trống)", open=False):
                             with gr.Row():
                                 b_gemini_key_box = gr.Textbox(
-                                    label="Gemini API Keys (Batch - Hỗ trợ xoay tua nhiều key):",
-                                    value=default_gemini_key,
-                                    placeholder="AIzaSy..., AIzaSy... (Để trống sẽ tự động lấy từ Tab 1)",
+                                    label="🔑 Google Gemini API Key (Batch - Đã tự động nạp từ Colab Secrets 🔑):" if colab_gemini_key else "Gemini API Keys (Batch - Hỗ trợ xoay tua nhiều key):",
+                                    value=colab_gemini_key,
+                                    placeholder="Đã tự động kết nối từ Colab Secrets (GEMINI_API_KEY)!" if colab_gemini_key else "Để trống sẽ tự động lấy từ Tab 1",
                                     type="password"
                                 )
                                 b_gemini_model_dropdown = gr.Dropdown(
-                                    choices=["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.5-pro"],
+                                    choices=["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.5-pro", "gemini-3.5-flash"],
                                     value="gemini-2.5-flash",
                                     label="Gemini Model:"
                                 )
