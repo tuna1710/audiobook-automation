@@ -5,7 +5,8 @@ from .oauth_auth import (
     calculate_schedule_iso,
     get_youtube_auth_url,
     verify_oauth_code_and_save_token,
-    get_youtube_service
+    get_youtube_service,
+    resolve_file_path
 )
 from .gdrive_logger import (
     find_shared_drive_folder,
@@ -23,6 +24,7 @@ __all__ = [
     "get_youtube_auth_url",
     "verify_oauth_code_and_save_token",
     "get_youtube_service",
+    "resolve_file_path",
     "find_shared_drive_folder",
     "check_script_already_published",
     "record_successful_publish",
