@@ -12,7 +12,6 @@ except ImportError:
     HttpError = Exception
 from .oauth_auth import get_youtube_service, calculate_schedule_iso, resolve_file_path, YOUTUBE_SCOPES
 from .gdrive_logger import record_successful_publish, auto_advance_lich_dang_file
-from ..pipeline.channel_profiles import get_channel_token_file, get_channel_profile, DEFAULT_TAGS
 
 logger = logging.getLogger("audiobook_automation.youtube_uploader")
 
@@ -140,6 +139,7 @@ def upload_to_youtube(*args, **kwargs) -> str:
         return f"❌ Lỗi: Không tìm thấy file video hợp lệ để đăng! (Nguồn đang chọn: {video_source_mode})"
 
     # Tìm token theo Hồ Sơ Kênh đã chọn
+    from ..pipeline.channel_profiles import get_channel_token_file, get_channel_profile, DEFAULT_TAGS
     token_file = get_channel_token_file(channel_profile)
     service = get_youtube_service(token_path=token_file)
 

@@ -4,7 +4,6 @@ import time
 import json
 import urllib.parse
 from typing import List, Optional, Dict, Any, Tuple
-from ..pipeline.channel_profiles import get_channel_profile
 
 ART_STYLE_TEMPLATES = {
     "pencil": {
@@ -202,6 +201,7 @@ def analyze_sentence_to_detective_prompt(
     Loại bỏ sạch 100% từ khóa thiền định / chữa lành lạc đề.
     Nếu là hồ sơ kênh khác, sử dụng kho từ khóa của hồ sơ đó.
     """
+    from ..pipeline.channel_profiles import get_channel_profile
     prof = get_channel_profile(channel_profile) if channel_profile else {}
     if prof and "Gothic" not in channel_profile and "Trinh Thám" not in channel_profile and "Nỗi Sợ" not in channel_profile:
         fallback_kws = prof.get("fallback_keywords", [])
@@ -321,6 +321,7 @@ def call_gemini_all_in_one_director(
     clean_model = clean_gemini_model_name(selected_model, default_model="gemini-3.5-flash-lite")
     total_cuts = len(cuts)
 
+    from ..pipeline.channel_profiles import get_channel_profile
     prof = get_channel_profile(channel_profile)
     genre_role = prof.get("genre_role", "Đạo diễn Hình ảnh Điện ảnh (Cinematic Storyboard Director)")
     active_concept = visual_concept if (visual_concept and len(visual_concept.strip()) > 5) else prof.get("visual_concept", "")

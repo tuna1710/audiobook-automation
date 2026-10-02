@@ -27,7 +27,6 @@ from ..video import (
     generate_ctr_booster_thumbnail,
     render_ultimate_video
 )
-from ..youtube import upload_to_youtube, check_script_already_published, record_successful_publish
 
 # Alias tương thích ngược
 build_retention_cuts = build_subtitle_retention_cuts
@@ -426,6 +425,7 @@ def process_full_pipeline(
 
     # 1-CLICK TỰ ĐỘNG ĐĂNG YOUTUBE
     if auto_upload_yt:
+        from ..youtube import upload_to_youtube
         if progress is not None:
             progress(0.95, desc="🚀 Đang tự động kết nối YouTube & Đăng video (1-Click Auto Upload)...")
         try:
@@ -519,6 +519,7 @@ def process_batch_pipeline(
 
         # Kiểm tra kịch bản đã đăng hay chưa
         if check_published_first:
+            from ..youtube import check_script_already_published
             already, row_info = check_script_already_published(sp, shared_drive_folder)
             if already:
                 msg = f"⏭️ Bỏ qua {file_name}: Kịch bản đã được xuất bản trước đó (Link: {row_info.get('Link_Video', '')})."

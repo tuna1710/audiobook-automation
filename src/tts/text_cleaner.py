@@ -1,6 +1,5 @@
 import re
 from datetime import datetime
-from ..pipeline.channel_profiles import get_channel_profile
 
 PRESET_VOICES = [
     "Thiền Tâm Đức",
@@ -67,6 +66,7 @@ def extract_script_components(raw_text: str, channel_profile: str = "", default_
     if not raw_text or not raw_text.strip():
         return "", "", "", "", ""
 
+    from ..pipeline.channel_profiles import get_channel_profile
     prof = get_channel_profile(channel_profile) if channel_profile else {}
     default_title = f"AUDIOBOOK {prof.get('channel_name', 'HỆ THỐNG').upper()}" if prof else "TRINH THÁM & KINH DỊ GOTHIC KINH ĐIỂN"
     topic_title = default_title
