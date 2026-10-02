@@ -210,13 +210,19 @@ def process_full_pipeline(
     custom_yt_desc: str = "",
     temp_dir: str = "temp_work",
     outputs_dir: str = "outputs",
-    progress=None
+    progress=None,
+    **kwargs
 ):
     """
     QUY TRÌNH SẢN XUẤT AUDIOBOOK ĐIỆN ẢNH TOÀN DIỆN V20.0
     """
     if not script_input or not script_input.strip():
         return None, None, None, [], "❌ Lỗi: Vui lòng dán kịch bản vào ô text!", "", ""
+
+    if "title_size_slider" in kwargs:
+        title_font_size = kwargs["title_size_slider"]
+    if "title_style_dropdown" in kwargs:
+        title_style = kwargs["title_style_dropdown"]
 
     os.makedirs(temp_dir, exist_ok=True)
     os.makedirs(outputs_dir, exist_ok=True)
