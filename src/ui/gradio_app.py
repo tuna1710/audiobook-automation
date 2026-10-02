@@ -84,13 +84,20 @@ DEFAULT_KEYS_TEXT = "\n".join(DEFAULT_PEXELS_KEYS)
 
 
 def get_available_rendered_videos(outputs_dir: str = "outputs") -> List[str]:
-    """Quét danh sách các file video đã render trong thư mục outputs."""
+    """Quét danh sách tất cả các file video đã render hoặc lưu trong thư mục outputs."""
     if not os.path.exists(outputs_dir):
-        return ["(Chưa có video nào trong outputs)"]
-    vids = sorted(glob.glob(os.path.join(outputs_dir, "video_*.mp4")), key=os.path.getmtime, reverse=True)
+        return ["(Chưa có video nào trong thư mục outputs)"]
+    extensions = ("*.mp4", "*.mov", "*.mkv", "*.webm", "*.avi")
+    vids = []
+    for ext in extensions:
+        vids.extend(glob.glob(os.path.join(outputs_dir, ext)))
+        vids.extend(glob.glob(os.path.join(outputs_dir, "*", ext)))
     if not vids:
-        return ["(Chưa có video nào trong outputs)"]
-    return [os.path.basename(v) for v in vids]
+        return ["(Chưa có video nào trong thư mục outputs)"]
+    unique_vids = list(set(vids))
+    unique_vids.sort(key=lambda p: os.path.getmtime(p), reverse=True)
+    res = [os.path.relpath(v, outputs_dir) for v in unique_vids]
+    return res if res else ["(Chưa có video nào trong thư mục outputs)"]
 
 
 def create_gradio_app(outputs_dir: str = "outputs", temp_dir: str = "temp_work", default_gemini_key: str = "", default_pexels_key: str = ""):
@@ -409,10 +416,19 @@ Một bí mật kinh hoàng sắp sửa được phơi bày trong bóng tối m�
                             ],
                             value="🎬 Video vừa tạo ở Tab 1 (Mặc định)"
                         )
-                        history_vids_dropdown = gr.Dropdown(
-                            label="Danh sách video trong outputs/:",
-                            choices=get_available_rendered_videos(outputs_dir),
-                            value=get_available_rendered_videos(outputs_dir)[0]
+                        with gr.Row():
+                            history_vids_dropdown = gr.Dropdown(
+                                label="Danh sách video trong thư mục outputs/: ",
+                                choices=get_available_rendered_videos(outputs_dir),
+                                value=get_available_rendered_videos(outputs_dir)[0] if get_available_rendered_videos(outputs_dir) else None,
+                                scale=4
+                            )
+                            btn_refresh_vids = gr.Button("🔄 Làm mới danh sách", scale=2, variant="secondary")
+
+                        history_vid_preview = gr.Video(
+                            label="👁️ Xem trước video đã chọn từ thư mục outputs/: ",
+                            interactive=False,
+                            height=260
                         )
                         custom_vid_upload = gr.File(label="Tải video từ máy:", file_types=[".mp4", ".mov", ".mkv"])
 
@@ -643,6 +659,44 @@ Một bí mật kinh hoàng sắp sửa được phơi bày trong bóng tối m�
                 b_editor_email, b_shared_drive, b_channel_profile, b_visual_concept_box, b_check_published
             ],
             outputs=[batch_status_box]
+        )
+
+        # Tab 3: Video selection & refresh handlers
+        def refresh_history_videos():
+            vids = get_available_rendered_videos(outputs_dir)
+            val = vids[0] if vids and not vids[0].startswith("(") else None
+            preview_path = os.path.join(outputs_dir, val) if val and os.path.exists(os.path.join(outputs_dir, val)) else None
+            return gr.update(choices=vids, value=val), preview_path
+
+        def on_history_video_change(selected_vid):
+            if not selected_vid or str(selected_vid).startswith("("):
+                return None
+            vid_path = os.path.join(outputs_dir, selected_vid)
+            return vid_path if os.path.exists(vid_path) else None
+
+        def on_video_source_change(source):
+            if "outputs" in str(source).lower():
+                vids = get_available_rendered_videos(outputs_dir)
+                val = vids[0] if vids and not vids[0].startswith("(") else None
+                preview_path = os.path.join(outputs_dir, val) if val and os.path.exists(os.path.join(outputs_dir, val)) else None
+                return gr.update(choices=vids, value=val), preview_path
+            return gr.update(), None
+
+        btn_refresh_vids.click(
+            fn=refresh_history_videos,
+            outputs=[history_vids_dropdown, history_vid_preview]
+        )
+
+        history_vids_dropdown.change(
+            fn=on_history_video_change,
+            inputs=[history_vids_dropdown],
+            outputs=[history_vid_preview]
+        )
+
+        yt_video_source.change(
+            fn=on_video_source_change,
+            inputs=[yt_video_source],
+            outputs=[history_vids_dropdown, history_vid_preview]
         )
 
         # Tab 3: Upload YouTube
