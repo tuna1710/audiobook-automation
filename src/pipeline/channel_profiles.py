@@ -20,7 +20,7 @@ CHANNEL_PROFILES_PRESET: Dict[str, Dict[str, Any]] = {
         "voice": "Thiền Tâm Đức",
         "tags": "Nỗi Sợ AudioBook, truyện trinh thám, kinh dị gothic, edgar allan poe, sherlock holmes, audio book trinh tham, truyen kinh di, vu an bi an, sach noi kinh di",
         "desc_template": "Audiobook kinh dị gothic & trinh thám tâm lý kinh điển - Kênh Nỗi Sợ AudioBook.\nCùng bước vào không gian u tối của những bí ẩn thế kỷ 19.\n\n#NoiSoAudioBook #TruyenTrinhTham #KinhDiGothic #Audiobook",
-        "token_filename": "token_noisobao.json",
+        "token_filename": "token.json",
         "fallback_keywords": [
             "detective in black coat",
             "brass lantern in fog",
@@ -37,7 +37,7 @@ CHANNEL_PROFILES_PRESET: Dict[str, Dict[str, Any]] = {
         "voice": "Thiền Tâm Đức",
         "tags": "phật pháp nhiệm màu, nghe pháp thoại, thiền định chữa lành, nhạc thiền an lạc, bài học phật dạy, buông bỏ muộn phiền, tĩnh tâm, sách nói tâm linh, an nhiên",
         "desc_template": "Kênh Phật Pháp & Thiền Định Chữa Lành - Những lời dạy sâu sắc giúp tâm an lạc, buông bỏ âu lo muộn phiền giữa dòng đời hối hả.\nKính chúc quý Phật tử và các bạn một ngày an lành, thân tâm thường lạc.\n\n#PhatPhap #ThienDinh #ChuaLanh #KinhPhat #NghePhapThoai #AnNhien",
-        "token_filename": "token_phatphap.json",
+        "token_filename": "token.json",
         "fallback_keywords": [
             "ancient buddhist pagoda with peaceful garden",
             "pink lotus blooming on clear water pond",
@@ -51,10 +51,10 @@ CHANNEL_PROFILES_PRESET: Dict[str, Dict[str, Any]] = {
         "genre_role": "Đạo diễn Sử thi Điện ảnh (Epic Cinematic History Director) chuyên tái hiện Lịch Sử, Cổ Trang & Huyền Sử Chiến Trận",
         "visual_concept": "Epic cinematic historical battle, ancient Asian imperial citadel, majestic palace, brave warriors in detailed traditional armor, dramatic sunset smoke, 8k",
         "style_suffix": ", epic cinematic history, ancient citadel, dramatic golden hour smoke, 35mm film still, 8k",
-        "voice": "Minh Hoàng",
+        "voice": "Minh Triết",
         "tags": "lịch sử việt nam, huyền sử, cổ trang, chiến tranh cổ đại, danh tướng việt nam, sử ký hào hùng, truyện lịch sử, đại việt sử ký, anh hùng dân tộc",
         "desc_template": "Kênh Lịch Sử & Huyền Sử - Tái hiện những trang sử vàng chói lọi, những chiến công oanh liệt và cuộc đời của các bậc tiền nhân.\n\n#LichSuVietNam #HuyenSu #CoTrang #DanhTuong #KhamPhaLichSu",
-        "token_filename": "token_lichsu.json",
+        "token_filename": "token.json",
         "fallback_keywords": [
             "ancient imperial throne hall with golden dragons",
             "warriors in traditional armor carrying banners",
@@ -68,10 +68,10 @@ CHANNEL_PROFILES_PRESET: Dict[str, Dict[str, Any]] = {
         "genre_role": "Đạo diễn Phim Khoa Học Viễn Tưởng (Sci-Fi & Astronomy Director) chuyên về Vũ Trụ, Khoa Học & Công Nghệ Tương Lai",
         "visual_concept": "Deep space cosmos, glowing colorful nebula, interstellar starships, mysterious alien exoplanets, futuristic cyberpunk city, ultra-detailed 8k",
         "style_suffix": ", deep space cosmos, cinematic sci-fi photorealism, glowing nebula, volumetric lighting, 8k",
-        "voice": "Bảo Ngọc",
+        "voice": "Mai Anh",
         "tags": "khám phá vũ trụ, khoa học viễn tưởng, thiên văn học, bí ẩn vũ trụ, công nghệ tương lai, người ngoài hành tinh, hố đen, du hành không gian, khoa học kỳ thú",
         "desc_template": "Kênh Khám Phá Vũ Trụ & Khoa Học - Hành trình mở rộng tri thức về những bí ẩn kỳ vĩ ngoài không gian và bước tiến tương lai nhân loại.\n\n#KhamPhaVuTru #KhoaHoc #ThienVanHoc #CongNgheTuongLai #VuTruBaoLa",
-        "token_filename": "token_khoahoc.json",
+        "token_filename": "token.json",
         "fallback_keywords": [
             "spiral galaxy with glowing interstellar dust",
             "futuristic spaceship exploring alien planet rings",
@@ -85,10 +85,10 @@ CHANNEL_PROFILES_PRESET: Dict[str, Dict[str, Any]] = {
         "genre_role": "Đạo diễn Điện ảnh Đời Thường & Tâm Lý (Cinematic Lifestyle & Drama Director) chuyên về Câu Chuyện Cuộc Sống, Tâm Lý & Podcast",
         "visual_concept": "Warm modern aesthetic lifestyle, contemplative person by rainy window, cozy cafe with books and coffee, soft interior lighting, cinematic photography",
         "style_suffix": ", warm modern aesthetic, emotional cinematic lighting, shallow depth of field, 35mm photography, 8k",
-        "voice": "Thanh Long",
+        "voice": "Thanh Bình",
         "tags": "bài học cuộc sống, phát triển bản thân, podcast suy ngẫm, tâm lý học, động lực thành công, triết lý sống, thay đổi tư duy, hạt giống tâm hồn",
         "desc_template": "Kênh Bài Học Cuộc Sống & Podcast Phát Triển Bản Thân - Những câu chuyện sâu sắc giúp tiếp thêm năng lượng tích cực và định hướng tương lai.\n\n#BaiHocCuocSong #PhatTrienBanThan #PodcastSuyNgam #DongLucMoiNgay",
-        "token_filename": "token_cuocsong.json",
+        "token_filename": "token.json",
         "fallback_keywords": [
             "person sitting thoughtfully by rainy cafe window",
             "cozy wooden desk with steaming coffee and open journal",
@@ -102,10 +102,10 @@ CHANNEL_PROFILES_PRESET: Dict[str, Dict[str, Any]] = {
         "genre_role": "Đạo diễn Hoạt Họa & Cổ Tích Thần Tiên (Fairy Tale & Fantasy Director) chuyên về Truyện Cổ Tích, Thần Thoại & Thế Giới Diệu Kỳ",
         "visual_concept": "Enchanted magical fairy tale forest, glowing fireflies, ancient mystical oak tree, whimsical cottage with warm window glow, Disney Pixar cinematic lighting, 8k",
         "style_suffix": ", magical fantasy atmosphere, whimsical fairy tale art, glowing enchanted lighting, vibrant 8k",
-        "voice": "Thảo Vy",
+        "voice": "Thùy Dung",
         "tags": "truyện cổ tích, thần thoại, truyện dân gian, cổ tích việt nam, thế giới cổ tích, truyện thiếu nhi, cổ tích chọn lọc, kể chuyện bé nghe",
         "desc_template": "Kênh Truyện Cổ Tích & Thần Thoại - Đưa bạn bước vào thế giới diệu kỳ của những câu chuyện thần tiên bất hủ và bài học nhân văn sâu sắc.\n\n#TruyenCoTich #ThanThoai #DanGian #TheGioiCoTich #KeChuyen",
-        "token_filename": "token_cotich.json",
+        "token_filename": "token.json",
         "fallback_keywords": [
             "magical enchanted forest with glowing mushrooms",
             "fairy tale cottage in wildflower meadow with smoking chimney",
@@ -122,7 +122,7 @@ CHANNEL_PROFILES_PRESET: Dict[str, Dict[str, Any]] = {
         "voice": "Thiền Tâm Đức",
         "tags": "audiobook, podcast, video truyen, chia se kien thuc",
         "desc_template": "Chào mừng bạn đến với kênh! Đừng quên bấm Đăng Ký để theo dõi các video mới nhất.\n\n#Audiobook #Podcast",
-        "token_filename": "token_custom.json",
+        "token_filename": "token.json",
         "fallback_keywords": [
             "cinematic landscape at sunrise with golden light",
             "portrait of thoughtful person in soft ambient light",
@@ -142,28 +142,30 @@ def get_channel_profile(profile_name: str) -> Dict[str, Any]:
 
 def get_channel_token_file(channel_profile: str = "", default_token: str = "token.json") -> str:
     """
-    Tìm file token OAuth YouTube tương ứng với hồ sơ kênh đã chọn.
-    Tìm kiếm lần lượt ở thư mục hiện tại, /content, /content/drive/MyDrive.
+    Tìm file token OAuth YouTube chung cho toàn bộ hệ thống (không cố định theo từng kênh).
+    Tự động quét các file token hợp lệ ở thư mục hiện tại, /content, Google Drive (/content/drive/MyDrive).
     """
-    token_name = default_token
-    if channel_profile and channel_profile in CHANNEL_PROFILES_PRESET:
-        token_name = CHANNEL_PROFILES_PRESET[channel_profile].get("token_filename", default_token)
-
     search_dirs = [
         ".",
         "/content",
         "/content/drive/MyDrive",
+        "configs",
         os.path.expanduser("~")
     ]
-    for d in search_dirs:
-        cand = os.path.join(d, token_name)
-        if os.path.exists(cand):
-            return cand
+    # 1. Quét các file token chung chuẩn
+    for fname in ["token.json", "youtube_token.json", default_token]:
+        for d in search_dirs:
+            cand = os.path.join(d, fname)
+            if os.path.exists(cand):
+                return cand
 
-    # Fallback kiểm tra token.json mặc định
-    for d in search_dirs:
-        cand = os.path.join(d, "token.json")
-        if os.path.exists(cand):
-            return cand
+    # 2. Hỗ trợ nhận diện file token riêng nếu có sẵn
+    if channel_profile and channel_profile in CHANNEL_PROFILES_PRESET:
+        custom_name = CHANNEL_PROFILES_PRESET[channel_profile].get("token_filename")
+        if custom_name:
+            for d in search_dirs:
+                cand = os.path.join(d, custom_name)
+                if os.path.exists(cand):
+                    return cand
 
-    return token_name
+    return default_token

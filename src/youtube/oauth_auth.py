@@ -31,7 +31,10 @@ TOKEN_CANDIDATES = [
     "youtube_token.json",
     "/content/token.json",
     "/content/youtube_token.json",
-    "configs/token.json"
+    "/content/drive/MyDrive/token.json",
+    "/content/drive/MyDrive/youtube_token.json",
+    "configs/token.json",
+    "configs/youtube_token.json"
 ]
 
 CLIENT_SECRET_CANDIDATES = [
@@ -39,6 +42,8 @@ CLIENT_SECRET_CANDIDATES = [
     "client_secrets.json",
     "/content/client_secret.json",
     "/content/client_secrets.json",
+    "/content/drive/MyDrive/client_secret.json",
+    "/content/drive/MyDrive/client_secrets.json",
     "configs/client_secret.json",
     "configs/client_secrets.json"
 ]

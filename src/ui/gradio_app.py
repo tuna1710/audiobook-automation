@@ -65,11 +65,19 @@ GEMINI_MODELS = [
 ]
 
 VOICE_OPTIONS = [
-    "Thiền Tâm Đức (Giọng nam trầm ấm, chiêm nghiệm - Mặc định)",
-    "Minh Quân Pro (Giọng nam kịch tính, trinh thám)",
-    "Thanh Long (Giọng nam truyền cảm)",
-    "Bảo Ngọc (Giọng nữ ấm áp)",
-    "Thảo Vy (Giọng nữ nhẹ nhàng)"
+    "Thiền Tâm Đức (Nam - Trầm ấm, chiêm nghiệm, Gothic & Phật pháp - Mặc định)",
+    "Minh Đức (Nam - Kịch tính, trinh thám, podcast)",
+    "Mai Anh (Nữ - Ấm áp, truyền cảm, tự nhiên)",
+    "Ngọc Huyền (Nữ - Dịu dàng, thanh thoát, khoa học & cổ tích)",
+    "Thanh Bình (Nam - Truyền cảm, bài học cuộc sống)",
+    "Thùy Dung (Nữ - Nhẹ nhàng, cảm xúc)",
+    "Minh Triết (Nam - Hào hùng, lịch sử & sử thi)",
+    "Hải Đăng (Nam - Mạnh mẽ, dứt khoát)",
+    "Mỹ Duyên (Nữ - Ngọt ngào, tự sự)",
+    "Quỳnh Anh (Nữ - Trong sáng, biểu cảm)",
+    "Đoan Trang (Nữ - Trang nhã, thanh lịch)",
+    "Đức Trí (Nam - Hiện đại, tự nhiên)",
+    "Quốc Tuấn (Nam - Trầm, dứt khoát)"
 ]
 
 DEFAULT_KEYS_TEXT = "\n".join(DEFAULT_PEXELS_KEYS)

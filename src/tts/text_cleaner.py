@@ -1,35 +1,81 @@
 import re
 from datetime import datetime
 
+# 25 giọng đọc chuẩn 100% có sẵn trong VieNeu-TTS Turbo
 PRESET_VOICES = [
     "Thiền Tâm Đức",
-    "Thanh Long",
-    "Bảo Ngọc",
-    "Thảo Vy",
-    "Mai Phương",
-    "Hùng Dũng",
-    "Quỳnh Như",
-    "Minh Hoàng",
-    "Hoài An",
-    "Gia Huy"
+    "Minh Đức",
+    "Mai Anh",
+    "Ngọc Huyền",
+    "Ngọc Linh",
+    "Thanh Bình",
+    "Thùy Dung",
+    "Mỹ Duyên",
+    "Quỳnh Anh",
+    "Đoan Trang",
+    "Thục Đoan",
+    "Kim Thanh",
+    "Ngọc Trân",
+    "Trúc Ly",
+    "Hải Đăng",
+    "Thiện Minh",
+    "Minh Triết",
+    "Đức Trí",
+    "Quốc Tuấn",
+    "Quang Sơn",
+    "Phạm Tuyên",
+    "Thái Sơn",
+    "Xuân Vĩnh",
+    "Adam",
+    "Adam bựa"
 ]
+
+VOICE_FALLBACK_MAP = {
+    "bảo ngọc": "Mai Anh",
+    "thảo vy": "Thùy Dung",
+    "thanh long": "Thanh Bình",
+    "mai phương": "Mai Anh",
+    "minh hoàng": "Minh Triết",
+    "hùng dũng": "Hải Đăng",
+    "quỳnh như": "Quỳnh Anh",
+    "hoài an": "Mỹ Duyên",
+    "gia huy": "Đức Trí",
+    "minh quân": "Minh Đức",
+    "minh quân pro": "Minh Đức"
+}
 
 
 def clean_voice_name(voice_str: str) -> str:
     """
     Làm sạch tên giọng VieNeu từ giao diện Gradio, loại bỏ phần chú thích trong ngoặc đơn,
-    và tự động khớp chính xác với _preset_voices của VieNeu để tuyệt đối không bị ValueError.
+    và tự động khớp chính xác với 25 giọng có sẵn trong VieNeu-TTS để tuyệt đối không bị ValueError.
     """
     if not voice_str:
         return "Thiền Tâm Đức"
 
     clean = re.sub(r'\(.*?\)', '', str(voice_str)).strip()
+
+    # 1. Khớp chính xác với 25 giọng của VieNeu
     for preset in PRESET_VOICES:
         if preset.lower() == clean.lower():
             return preset
-        if preset.lower() in clean.lower() or clean.lower() in preset.lower():
+
+    # 2. Khớp với bảng ánh xạ giọng cũ / alias
+    clean_lower = clean.lower()
+    if clean_lower in VOICE_FALLBACK_MAP:
+        return VOICE_FALLBACK_MAP[clean_lower]
+
+    for old_v, target_v in VOICE_FALLBACK_MAP.items():
+        if old_v in clean_lower:
+            return target_v
+
+    # 3. Khớp chuỗi con
+    for preset in PRESET_VOICES:
+        if preset.lower() in clean_lower or clean_lower in preset.lower():
             return preset
-    return clean if clean else "Thiền Tâm Đức"
+
+    # 4. Fallback an toàn tuyệt đối
+    return "Thiền Tâm Đức"
 
 
 def extract_schedule_from_text(raw_text: str) -> str:
