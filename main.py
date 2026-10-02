@@ -14,7 +14,7 @@ from src.pipeline import process_full_pipeline, process_batch_pipeline
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Audiobook Automation AI Studio V19.7")
+    parser = argparse.ArgumentParser(description="Audiobook Automation AI Studio V20.0 (Cinema Gothic V20)")
     parser.add_argument("--share", action="store_true", help="Tạo link công khai Gradio Share (Bắt buộc cho Google Colab)")
     parser.add_argument("--host", type=str, default="0.0.0.0", help="Địa chỉ IP host (Mặc định: 0.0.0.0)")
     parser.add_argument("--port", type=int, default=7860, help="Cổng chạy Web UI (Mặc định: 7860)")
@@ -85,7 +85,7 @@ def main():
 
     # Chế độ Web UI (Gradio)
     print("=" * 60)
-    print("🎙️ AUDIOBOOK AUTOMATION STUDIO V19.7")
+    print("🎙️ AUDIOBOOK AUTOMATION STUDIO V20.0 (Cinema Gothic V20)")
     print(f"🌐 Server: http://localhost:{args.port}")
     if args.share:
         print("🔗 Chế độ chia sẻ trực tuyến (--share): BẬT (Thích hợp cho Google Colab)")

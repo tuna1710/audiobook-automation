@@ -1,13 +1,17 @@
-"""
-TTS Module: Voice Synthesis & Script Preprocessing
-"""
-from .text_cleaner import extract_script_components, clean_voice_name, PRESET_VOICES
-from .engine import TTSEngine, get_tts_engine
+from .engine import TTSEngine, get_tts_engine, preview_voice_sample
+from .text_cleaner import (
+    PRESET_VOICES,
+    clean_voice_name,
+    extract_script_components,
+    extract_schedule_from_text
+)
 
 __all__ = [
-    "extract_script_components",
-    "clean_voice_name",
-    "PRESET_VOICES",
     "TTSEngine",
-    "get_tts_engine"
+    "get_tts_engine",
+    "preview_voice_sample",
+    "PRESET_VOICES",
+    "clean_voice_name",
+    "extract_script_components",
+    "extract_schedule_from_text"
 ]

@@ -235,3 +235,7 @@ def render_ultimate_video(
 
     subprocess.run(cmd_final, check=True)
     return output_video_path
+
+# Aliases tương thích ngược
+render_ultimate_video_v19 = render_ultimate_video
+render_ultimate_video_v18 = render_ultimate_video

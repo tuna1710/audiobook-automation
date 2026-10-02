@@ -5,11 +5,17 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Tuple, Any
 
-# Google OAuth2 Libraries
-from google.oauth2.credentials import Credentials
-from google.auth.transport.requests import Request
-import google_auth_oauthlib.flow
-import googleapiclient.discovery
+# Google OAuth2 Libraries (Tải an toàn / Graceful Fallback)
+try:
+    from google.oauth2.credentials import Credentials
+    from google.auth.transport.requests import Request
+    import google_auth_oauthlib.flow
+    import googleapiclient.discovery
+except ImportError:
+    Credentials = None
+    Request = None
+    google_auth_oauthlib = None
+    googleapiclient = None
 
 logger = logging.getLogger("audiobook_automation.youtube_oauth")
 
@@ -38,7 +44,7 @@ CLIENT_SECRET_CANDIDATES = [
 ]
 
 # Lưu trữ phiên Flow OAuth đang hoạt động
-_active_oauth_flow: Optional[google_auth_oauthlib.flow.InstalledAppFlow] = None
+_active_oauth_flow: Optional[Any] = None
 
 
 def resolve_file_path(f: Any) -> Optional[str]:

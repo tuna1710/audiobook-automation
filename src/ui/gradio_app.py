@@ -4,8 +4,21 @@ from datetime import datetime, timezone, timedelta
 from typing import List, Optional, Any
 import gradio as gr
 
-from ..pipeline import process_full_pipeline, process_batch_pipeline
-from ..tts import PRESET_VOICES, extract_script_components
+from ..pipeline import (
+    process_full_pipeline,
+    process_batch_pipeline,
+    CHANNEL_PROFILES_PRESET,
+    get_channel_profile,
+    get_channel_token_file,
+    DEFAULT_TAGS
+)
+from ..tts import (
+    PRESET_VOICES,
+    clean_voice_name,
+    extract_script_components,
+    preview_voice_sample
+)
+from ..ai_director import DEFAULT_PEXELS_KEYS
 from ..youtube import (
     upload_to_youtube,
     get_youtube_auth_url,
@@ -16,557 +29,636 @@ from ..youtube import (
 
 TITLE_STYLES = [
     "✨ Điện Ảnh Sang Trọng (Chữ Trắng Đổ Bóng - Không Hộp Đen)",
-    "🎬 Hộp Nền Đen Mờ Sang Trọng (Điện Ảnh Netflix)",
-    "🚫 Tắt Tiêu Đề Trên Video (Chỉ hiển thị phụ đề & hình ảnh)"
+    "📦 Hộp Nền Đen Mờ (Tăng độ tương phản)",
+    "🚫 Tắt Tiêu Đề (Khung hình sạch 100%)"
 ]
 
 SUB_COLORS = [
     "Vàng viền đen (Nổi bật - Khuyên dùng)",
-    "Trắng viền đen (Thanh lịch)"
+    "Trắng viền đen (Cổ điển)"
 ]
 
-WAVEFORM_STYLES = [
-    "Tắt (Khuyên dùng cho Phim Tài Liệu)",
-    "Equalizer Hiện Đại (Cột sóng Cyan/Gold)",
-    "Sóng Âm Mềm Mại (Đường line uốn lượn Trắng)",
-    "Vàng Kim Huyền Bí (Cột sóng Gold)",
-    "Dải Màu Gradient (Sóng neon Cyan/Tím)"
+WAVEFORM_CHOICES = [
+    "Tắt (Không dùng sóng nhạc)",
+    "📊 Equalizer Cổ Điển (Cyan & Gold)",
+    "〰️ Mềm Mại Tối Giản (White Line)",
+    "✨ Vàng Ánh Kim (Gold Bar)",
+    "🌈 Gradient Hiện Đại (Cyan & Purple)"
 ]
 
-ART_STYLE_CHOICES = [
-    "📷 Điện Ảnh Đời Thực (35mm Photorealistic - Mặc định)",
-    "✏️ Phác Thảo Bút Chì Đen Trắng (Pencil & Charcoal Sketch)",
-    "📜 Tranh Thủy Mặc Cổ Trang (Ink Wash & Watercolor)",
-    "🕵️ Truyện Tranh Noir Cổ Điển (Vintage Graphic Novel Noir)"
+VISUAL_MODES_V20 = [
+    "🎨 100% Ảnh Nghệ Thuật AI (SDXL Photorealism)",
+    "🎬 100% Video Stock (Pexels / Coverr / Mixkit)"
 ]
+
+SYNC_MODES = [
+    "⚡ Tự động theo từng câu Subtitle (Whisper Sync)",
+    "🎛️ Cắt đều theo số lượng cảnh thủ công"
+]
+
+GEMINI_MODELS = [
+    "⚡ gemini-3.5-flash-lite (Khuyên dùng Free Tier - Siêu nhanh & Tiết kiệm Quota)",
+    "🌟 gemini-3.8-flash (Chất lượng đạo diễn cao nhất - Chuẩn All-in-One)",
+    "⚖️ gemini-3.5-flash (Cân bằng tốc độ & Độ chi tiết)",
+    "🛡️ gemini-3.1-flash-lite (Dự phòng ổn định dòng Lite)",
+    "🎯 gemini-3.7-flash (Tư duy & Đạo diễn phân cảnh nâng cao)"
+]
+
+VOICE_OPTIONS = [
+    "Thiền Tâm Đức (Giọng nam trầm ấm, chiêm nghiệm - Mặc định)",
+    "Minh Quân Pro (Giọng nam kịch tính, trinh thám)",
+    "Thanh Long (Giọng nam truyền cảm)",
+    "Bảo Ngọc (Giọng nữ ấm áp)",
+    "Thảo Vy (Giọng nữ nhẹ nhàng)"
+]
+
+DEFAULT_KEYS_TEXT = "\n".join(DEFAULT_PEXELS_KEYS)
 
 
 def get_available_rendered_videos(outputs_dir: str = "outputs") -> List[str]:
-    """
-    Quét danh sách các file video đã render hoàn chỉnh trong thư mục outputs.
-    """
+    """Quét danh sách các file video đã render trong thư mục outputs."""
     if not os.path.exists(outputs_dir):
         return ["(Chưa có video nào trong outputs)"]
     vids = sorted(glob.glob(os.path.join(outputs_dir, "video_*.mp4")), key=os.path.getmtime, reverse=True)
-    names = [os.path.basename(v) for v in vids]
-    return names if names else ["(Chưa có video nào trong outputs)"]
+    if not vids:
+        return ["(Chưa có video nào trong outputs)"]
+    return [os.path.basename(v) for v in vids]
 
 
-def get_sample_tomorrow_time() -> str:
-    """
-    Tạo mốc thời gian 19:30 tối ngày mai theo giờ Việt Nam (UTC+7).
-    """
+def create_gradio_app(outputs_dir: str = "outputs", temp_dir: str = "temp_work", default_gemini_key: str = "", default_pexels_key: str = ""):
+    """Khởi tạo giao diện Gradio V20.0."""
     vn_tz = timezone(timedelta(hours=7))
-    tomorrow_vn = datetime.now(vn_tz) + timedelta(days=1)
-    return tomorrow_vn.strftime("%Y-%m-%d 19:30")
+    sample_tomorrow_vn = (datetime.now(vn_tz) + timedelta(days=1)).strftime("%Y-%m-%d 19:30")
 
+    sample_script = f"""Tiêu đề: BÍ MẬT DƯỚI TẦNG HẦM CỦA DINH THỰ GOTHIC
+- Visual: 19th century Victorian Gothic manor in heavy dense midnight fog, flickering gas lamps, dark moody chiaroscuro lighting, detective mystery
+[LỊCH ĐĂNG]: {sample_tomorrow_vn}
+[MÔ TẢ VIDEO]: Audiobook kinh dị gothic và trinh thám tâm lý kinh điển - Kênh Nỗi Sợ AudioBook. Cùng khám phá những bí ẩn rùng rợn bị chôn giấu qua năm tháng.
+#NoiSoAudioBook #TruyenTrinhTham #KinhDiGothic #EdgarAllanPoe #SherlockHolmes #SachNoiKinhDi
 
-def create_gradio_app(default_gemini_key: str = "", default_pexels_key: str = ""):
-    """
-    Xây dựng giao diện Web Gradio V19.7 đa nền tảng với đầy đủ 3 Tab chuyên nghiệp:
-    - Tab 1: Sản xuất đơn lẻ với bộ chọn Phong Cách Nghệ Thuật (Art Style)
-    - Tab 2: Sản xuất hàng loạt tích hợp cài đặt API Key & Phong cách riêng cho cả mẻ
-    - Tab 3: Trung tâm phân phối YouTube Studio OAuth2
-    """
-    # Tự động nhận diện Gemini API Key từ Colab Secrets (chìa khóa 🔑) hoặc biến môi trường
-    colab_gemini_key = default_gemini_key.strip() if default_gemini_key else ""
-    if not colab_gemini_key:
-        colab_gemini_key = os.environ.get("GEMINI_API_KEY", "").strip()
-    if not colab_gemini_key:
-        try:
-            from google.colab import userdata
-            val = userdata.get("GEMINI_API_KEY")
-            if val:
-                colab_gemini_key = str(val).strip()
-                print("🔑 Đã tự động kết nối GEMINI_API_KEY từ Google Colab Secrets (Chìa khóa 🔑)!")
-        except Exception:
-            pass
+--- [VĂN BẢN ĐỌC CHO VIENEU-TTS-V3-TURBO] ---
+Đêm hôm đó, một cơn mưa lạnh buốt bao trùm khắp thị trấn cổ kính.
+Ánh đèn dầu lập lòe hắt những cái bóng kỳ dị lên bức tường đá ẩm mốc.
+Từ sâu dưới tầng hầm dinh thự cổ, một tiếng gõ cửa bí ẩn vang lên đều đặn.
+Ai đang ẩn nấp sau cánh cửa gỗ sồi đã bị khóa chặt suốt trăm năm qua?
+Một bí mật kinh hoàng sắp sửa được phơi bày trong bóng tối mịt mù."""
 
-    sample_time_vn = get_sample_tomorrow_time()
+    colab_gemini_key = default_gemini_key.strip() if default_gemini_key and default_gemini_key.strip() else os.environ.get("GEMINI_API_KEY", "")
+    active_pexels_text = default_pexels_key.strip() if default_pexels_key and default_pexels_key.strip() else DEFAULT_KEYS_TEXT
 
-    with gr.Blocks(title="Audiobook Automation AI Studio V19.7") as demo:
-        gr.Markdown(
-            "# 🎙️ AUDIOBOOK AUTOMATION STUDIO V19.7\n"
-            "### 🎬 Sản Xuất Video Essay & Audiobook Tự Động: VieNeu-TTS 48kHz | SDXL Multi-Art Styles | Whisper | 1-Click YouTube Auto Publish"
-        )
+    with gr.Blocks(title="NỖI SỢ AUDIOBOOK - HỆ THỐNG DỰNG VIDEO TRINH THÁM & KINH DỊ GOTHIC V20.0") as demo:
+        gr.Markdown("# 🎙️🎬 NỖI SỢ AUDIOBOOK: TRÌNH TẠO VIDEO TRINH THÁM & KINH DỊ GOTHIC ĐIỆN ẢNH V20.0")
+        gr.Markdown("📱 **Video Dọc 9:16 Gốc (Không Cắt Xén)** | 📁 **Tách Sạch outputs/ & temp_work/** | ⚡ **Đồng Bộ Từng Câu Subtitle** | 🤖 **AI Đạo Diễn All-in-One** | 🔑 **Pexels / Coverr / Mixkit**")
 
         with gr.Tabs():
-            # ==========================================================
-            # TAB 1: SẢN XUẤT ĐƠN LẺ
-            # ==========================================================
-            with gr.TabItem("🎬 TAB 1: SẢN XUẤT VIDEO ĐƠN LẺ"):
+            # =================================================================
+            # TAB 1: TẠO VIDEO ESSAY
+            # =================================================================
+            with gr.Tab("🎬 TAB 1: TẠO VIDEO ESSAY"):
                 with gr.Row():
-                    with gr.Column(scale=5):
-                        script_box = gr.Textbox(
-                            label="📜 Dán Nội Dung Kịch Bản Vào Đây:",
-                            lines=12,
-                            placeholder="Dán toàn bộ kịch bản (Bao gồm [TIÊU ĐỀ GỢI Ý], [Ý TƯỞNG THUMBNAIL], [MÔ TẢ VIDEO]...)"
-                        )
-
-                        aspect_ratio_radio = gr.Radio(
-                            choices=[
-                                "16:9 Ngang (YouTube Video Essay Chuẩn - 1920x1080)",
-                                "9:16 Dọc (TikTok / YouTube Shorts / Facebook Reels - 1080x1920)"
-                            ],
-                            value="16:9 Ngang (YouTube Video Essay Chuẩn - 1920x1080)",
-                            label="📱 Định Dạng Khung Hình:"
-                        )
+                    with gr.Column(scale=6):
+                        with gr.Row():
+                            channel_profile_dropdown = gr.Dropdown(
+                                label="📺 Chọn Hồ Sơ Kênh (Preset 1-Click Tự Động Hóa):",
+                                choices=list(CHANNEL_PROFILES_PRESET.keys()),
+                                value="🕯️ Trinh Thám & Kinh Dị Gothic (Kênh Nỗi Sợ AudioBook)",
+                                scale=5
+                            )
+                            visual_concept_box = gr.Textbox(
+                                label="🎨 Không Gian Mỹ Thuật / Concept Hình Ảnh (Tự động theo Kênh):",
+                                value=CHANNEL_PROFILES_PRESET["🕯️ Trinh Thám & Kinh Dị Gothic (Kênh Nỗi Sợ AudioBook)"]["visual_concept"],
+                                lines=1,
+                                scale=7
+                            )
 
                         with gr.Row():
-                            visual_mode_dropdown = gr.Dropdown(
-                                choices=["SDXL (AI Hình Ảnh Ẩn Dụ)", "Pexels (Video Stock Chuyển Động)", "Pexels Ưu Tiên (Thiếu sẽ bù SDXL)"],
-                                value="SDXL (AI Hình Ảnh Ẩn Dụ)",
-                                label="🎨 Nguồn Tư Liệu Thị Giác:",
-                                scale=2
-                            )
-                            art_style_dropdown = gr.Dropdown(
-                                choices=ART_STYLE_CHOICES,
-                                value=ART_STYLE_CHOICES[0],
-                                label="🖌️ Phong Cách Nghệ Thuật (Art Style):",
+                            aspect_ratio_radio = gr.Radio(
+                                label="📱 Định dạng Khung Hình Video (Aspect Ratio):",
+                                choices=[
+                                    "16:9 Ngang (YouTube Video Essay Chuẩn - 1920x1080)",
+                                    "9:16 Dọc (TikTok / YouTube Shorts / Facebook Reels - 1080x1920)"
+                                ],
+                                value="16:9 Ngang (YouTube Video Essay Chuẩn - 1920x1080)",
                                 scale=3
+                            )
+                            visual_mode_dropdown = gr.Dropdown(
+                                label="🎯 Chọn Phương Pháp Hình Ảnh/Video:",
+                                choices=VISUAL_MODES_V20,
+                                value=VISUAL_MODES_V20[0],
+                                scale=4
                             )
 
                         with gr.Row():
                             sync_mode_dropdown = gr.Dropdown(
-                                choices=["Tự động (Theo phụ đề Whisper)", "Thủ công (Chia đều kịch bản)"],
-                                value="Tự động (Theo phụ đề Whisper)",
-                                label="⚡ Cơ Chế Cắt Cảnh:"
+                                label="⚡ Cơ chế Đồng Bộ Phân Cảnh (Subtitle Sync):",
+                                choices=SYNC_MODES,
+                                value=SYNC_MODES[0],
+                                scale=4
                             )
-                            num_scenes_slider = gr.Slider(minimum=5, maximum=40, value=15, step=1, label="Số Cảnh (Khi chọn thủ công):")
+                            retention_cuts_cb = gr.Checkbox(
+                                label="🎯 Quy tắc 2 phút giữ chân người xem (Retention Cuts)",
+                                value=True,
+                                info="Tự động khóa chặt nhịp cắt cảnh 2.4s - 6.8s chống trôi lệch hình.",
+                                scale=3
+                            )
+                            num_scenes_slider = gr.Slider(
+                                minimum=4,
+                                maximum=120,
+                                value=12,
+                                step=1,
+                                label="🎛️ Số lượng cảnh (Khi chọn Thủ công):",
+                                scale=3
+                            )
 
-                        with gr.Accordion("⚙️ CÀI ĐẶT NÂNG CAO (AI & API KEYS)", open=False):
+                        with gr.Accordion("🤖 CẤU HÌNH AI ĐẠO DIỄN V20 (HÌNH ĐI CÙNG SUB 100% & 1 REQUEST ALL-IN-ONE)", open=True):
                             with gr.Row():
                                 gemini_key_box = gr.Textbox(
-                                    label="🔑 Google Gemini API Key (Đã tự động nạp từ Colab Secrets 🔑):" if colab_gemini_key else "🔑 Google Gemini API Key (Khuyên dùng - Miễn phí - 100% Prompt ảnh độc bản):",
-                                    placeholder="Đã tự động kết nối từ Colab Secrets (GEMINI_API_KEY)!" if colab_gemini_key else "Dán Gemini API Key (lấy miễn phí tại aistudio.google.com)...",
+                                    label="🔑 Google Gemini API Key (Miễn phí tại aistudio.google.com):",
+                                    placeholder="Dán Gemini API Key vào đây...",
                                     value=colab_gemini_key,
-                                    type="password"
+                                    type="password",
+                                    scale=4
                                 )
                                 gemini_model_dropdown = gr.Dropdown(
-                                    choices=["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.5-pro", "gemini-3.5-flash"],
-                                    value="gemini-2.5-flash",
-                                    label="Gemini Model:"
+                                    label="🧠 Chọn Model AI Đạo Diễn (Google AI Studio 2026):",
+                                    choices=GEMINI_MODELS,
+                                    value=GEMINI_MODELS[0],
+                                    scale=3
                                 )
-                            with gr.Row():
-                                pexels_key_box = gr.Textbox(label="Pexels API Keys (Xoay tua nhiều key cách bằng dấu phẩy):", value=default_pexels_key)
-                                allow_reuse_box = gr.Checkbox(label="Cho phép dùng lại hình ảnh đẹp", value=False)
+                                allow_reuse_cb = gr.Checkbox(
+                                    label="♻️ Tiết kiệm GPU (Tái sử dụng ảnh)",
+                                    value=False,
+                                    info="Mặc định TẮT: 100% phân cảnh đều có ảnh độc bản.",
+                                    scale=2
+                                )
+
+                        with gr.Accordion("🔑 CỤM PEXELS & STOCK API KEYS (COVERR / MIXKIT / PEXELS)", open=False):
+                            pexels_key_box = gr.Textbox(
+                                label="Danh sách Pexels API Key (Tự động xoay tua khi chạm rate limit):",
+                                value=active_pexels_text,
+                                lines=2
+                            )
 
                         with gr.Row():
-                            voice_dropdown = gr.Dropdown(choices=PRESET_VOICES, value="Thiền Tâm Đức", label="🎙️ Giọng Đọc (VieNeu-TTS):")
-                            topic_title_box = gr.Textbox(label="🏷️ Tiêu Đề Tùy Biến (Để trống sẽ tự lấy từ kịch bản):")
+                            script_file_upload = gr.File(
+                                label="📂 Tải lên 1 File Kịch Bản (.txt, .md):",
+                                file_types=[".txt", ".md"],
+                                scale=3
+                            )
+                            btn_clear_script = gr.Button("🗑️ Xóa trắng kịch bản", scale=1)
 
-                        with gr.Row():
-                            title_style_dropdown = gr.Dropdown(choices=TITLE_STYLES, value=TITLE_STYLES[0], label="✨ Phong Cách Tiêu Đề:", scale=3)
-                            title_size_slider = gr.Slider(minimum=20, maximum=100, value=60, step=2, label="🔠 Cỡ chữ Tiêu đề (Mặc định 60):", scale=2)
-
-                        with gr.Accordion("🎵 NHẠC NỀN (BGM) & HIỆU ỨNG ÂM THANH", open=False):
-                            with gr.Row():
-                                bgm_upload = gr.Audio(label="Tải file nhạc nền (mp3/wav):", type="filepath")
-                                bgm_gdrive_box = gr.Textbox(label="Hoặc dán Link Google Drive BGM:")
-                                bgm_vol_slider = gr.Slider(minimum=0.05, maximum=0.5, value=0.15, step=0.01, label="Âm lượng BGM (Mặc định 15%):")
-
-                        with gr.Accordion("📝 CÀI ĐẶT PHỤ ĐỀ & SÓNG ÂM (SAFE ZONE FIX V19.7)", open=True):
-                            with gr.Row():
-                                add_sub_cb = gr.Checkbox(label="Bật phụ đề (Subtitles)", value=True)
-                                sub_color_dropdown = gr.Dropdown(choices=SUB_COLORS, value=SUB_COLORS[0], label="Màu chữ phụ đề:")
-                                waveform_dropdown = gr.Dropdown(choices=WAVEFORM_STYLES, value=WAVEFORM_STYLES[0], label="Hiệu ứng sóng âm:")
-                                sub_size_slider = gr.Slider(minimum=14, maximum=40, value=18, step=1, label="🔤 Cỡ chữ Phụ đề (Mặc định 18):")
-
-                        with gr.Accordion("🚀 CẤU HÌNH YOUTUBE & BÁO CÁO (KHI BẤM NÚT ĐĂNG YOUTUBE)", open=False):
-                            with gr.Row():
-                                yt_privacy_dropdown = gr.Dropdown(choices=["private", "unlisted", "public"], value="private", label="Chế độ riêng tư:")
-                                editor_email_box = gr.Textbox(label="Email người làm:")
-                                shared_drive_box = gr.Textbox(label="Thư mục báo cáo CSV (Google Drive / Local):", value="outputs")
-
-                        with gr.Row():
-                            generate_only_btn = gr.Button("🔥 BẮT ĐẦU SẢN XUẤT (CHỈ TẠO VIDEO)", variant="secondary", size="lg", scale=1)
-                            generate_and_upload_btn = gr.Button("🚀 1-CLICK: TẠO VIDEO & TỰ ĐỘNG ĐĂNG YOUTUBE LUÔN", variant="primary", size="lg", scale=1)
-
-                    with gr.Column(scale=5):
-                        video_output = gr.Video(label="🎬 Video MP4 Thành Phẩm:")
-                        with gr.Row():
-                            audio_output = gr.Audio(label="🔊 File Âm Thanh Chính Thức:")
-                            srt_output = gr.File(label="📄 File Phụ Đề Chuẩn SRT:")
-                        gallery_output = gr.Gallery(label="🖼️ Thumbnail YouTube (CTR Booster) & Phân Cảnh:", columns=2, height="auto")
-                        status_output = gr.Textbox(label="📊 Nhật Ký & Tiến Độ Xuất Bản:", lines=6)
-                        with gr.Accordion("📋 TIÊU ĐỀ & MÔ TẢ ĐÃ TÍNH TIMESTAMPS YOUTUBE", open=False):
-                            display_title = gr.Textbox(label="Tiêu đề chuẩn SEO:")
-                            display_desc = gr.Textbox(label="Mô tả hoàn chỉnh (Đã chèn Chapters):", lines=8)
-
-            # ==========================================================
-            # TAB 2: SẢN XUẤT HÀNG LOẠT (BATCH PROCESSING)
-            # ==========================================================
-            with gr.TabItem("📦 TAB 2: SẢN XUẤT HÀNG LOẠT (BATCH PROCESSING)"):
-                with gr.Row():
-                    with gr.Column(scale=5):
-                        batch_files_box = gr.File(label="📂 Chọn nhiều file kịch bản (.txt):", file_count="multiple", file_types=[".txt"])
-                        batch_folder_box = gr.Textbox(label="Hoặc nhập đường dẫn thư mục kịch bản (Local / Drive):")
-
-                        b_aspect_ratio = gr.Radio(
-                            choices=[
-                                "16:9 Ngang (YouTube Video Essay Chuẩn - 1920x1080)",
-                                "9:16 Dọc (TikTok / YouTube Shorts / Facebook Reels - 1080x1920)"
-                            ],
-                            value="16:9 Ngang (YouTube Video Essay Chuẩn - 1920x1080)",
-                            label="📱 Định Dạng Cho Cả Mẻ:"
+                        script_box = gr.Textbox(
+                            label="📄 Nội dung Kịch bản (Bao gồm tiêu đề, visual concept, mốc thời gian và văn bản đọc):",
+                            lines=10,
+                            value=sample_script
                         )
 
                         with gr.Row():
-                            b_voice_dropdown = gr.Dropdown(choices=PRESET_VOICES, value="Thiền Tâm Đức", label="Giọng Đọc Cho Cả Mẻ:", scale=2)
-                            b_art_style = gr.Dropdown(choices=ART_STYLE_CHOICES, value=ART_STYLE_CHOICES[0], label="🖌️ Phong Cách Cho Cả Mẻ:", scale=3)
-                            b_sub_size = gr.Slider(minimum=14, maximum=40, value=18, step=1, label="🔤 Cỡ chữ Phụ đề Batch:", scale=2)
+                            voice_dropdown = gr.Dropdown(
+                                label="🔊 Giọng đọc VieNeu-TTS (48kHz):",
+                                choices=VOICE_OPTIONS,
+                                value=VOICE_OPTIONS[0],
+                                scale=3
+                            )
+                            btn_preview_voice = gr.Button("🎧 Nghe thử giọng này", variant="secondary", scale=1)
+                            title_top_box = gr.Textbox(
+                                label="🏷️ Tiêu đề hiển thị trên video:",
+                                placeholder="Để trống hệ thống tự bóc tách...",
+                                lines=1,
+                                scale=3
+                            )
 
-                        with gr.Accordion("⚙️ CÀI ĐẶT API KEYS CHO MẺ BATCH (Tự động lấy từ Tab 1 nếu để trống)", open=False):
+                        with gr.Row():
+                            title_style_dropdown = gr.Dropdown(
+                                label="🎨 Kiểu dáng Tiêu đề trên video:",
+                                choices=TITLE_STYLES,
+                                value=TITLE_STYLES[0],
+                                scale=3
+                            )
+                            title_size_slider = gr.Slider(minimum=20, maximum=100, value=60, step=2, label="🔠 Cỡ chữ Tiêu đề:", scale=2)
+
+                        preview_voice_audio = gr.Audio(
+                            label="🔊 Âm thanh nghe thử giọng đọc:",
+                            type="filepath",
+                            interactive=False
+                        )
+
+                        with gr.Accordion("🌊 CÀI ĐẶT SÓNG NHẠC (VISUALIZER), NHẠC NỀN BGM & PHỤ ĐỀ", open=False):
                             with gr.Row():
-                                b_gemini_key_box = gr.Textbox(
-                                    label="🔑 Google Gemini API Key (Batch - Đã tự động nạp từ Colab Secrets 🔑):" if colab_gemini_key else "Gemini API Keys (Batch - Hỗ trợ xoay tua nhiều key):",
-                                    value=colab_gemini_key,
-                                    placeholder="Đã tự động kết nối từ Colab Secrets (GEMINI_API_KEY)!" if colab_gemini_key else "Để trống sẽ tự động lấy từ Tab 1",
-                                    type="password"
+                                waveform_dropdown = gr.Dropdown(
+                                    label="🌊 Kiểu Sóng Nhạc:",
+                                    choices=WAVEFORM_CHOICES,
+                                    value=WAVEFORM_CHOICES[0],
+                                    scale=3
                                 )
-                                b_gemini_model_dropdown = gr.Dropdown(
-                                    choices=["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.5-pro", "gemini-3.5-flash"],
-                                    value="gemini-2.5-flash",
-                                    label="Gemini Model:"
-                                )
+                                bgm_vol_slider = gr.Slider(minimum=0.02, maximum=0.35, value=0.10, step=0.01, label="Âm lượng BGM:", scale=2)
+
                             with gr.Row():
-                                b_pexels_key_box = gr.Textbox(
-                                    label="Pexels API Keys (Batch):",
-                                    value=default_pexels_key,
-                                    placeholder="Để trống sẽ tự động lấy từ Tab 1..."
+                                bgm_upload = gr.Audio(label="Tải lên file nhạc BGM (MP3/WAV):", type="filepath", scale=2)
+                                bgm_gdrive_box = gr.Textbox(
+                                    label="Hoặc dán Link Nhạc từ Google Drive:",
+                                    placeholder="https://drive.google.com/file/d/.../view?usp=sharing",
+                                    lines=1,
+                                    scale=2
                                 )
 
-                        with gr.Accordion("🚀 CẤU HÌNH YOUTUBE CHO CẢ MẺ (1-CLICK BATCH UPLOAD)", open=True):
                             with gr.Row():
-                                b_yt_privacy = gr.Dropdown(
-                                    choices=["private", "unlisted", "public"],
-                                    value="private",
-                                    label="Chế độ riêng tư YouTube khi Upload Batch:",
-                                    scale=1
+                                add_subtitles_cb = gr.Checkbox(label="📝 Bật Phụ đề tự động (Whisper Safe Zone)", value=True, scale=2)
+                                sub_color_dropdown = gr.Dropdown(
+                                    label="Màu sắc phụ đề:",
+                                    choices=SUB_COLORS,
+                                    value=SUB_COLORS[0],
+                                    scale=2
                                 )
-                                b_editor_email = gr.Textbox(
-                                    label="📧 Email Người Phụ Trách:",
-                                    placeholder="ví dụ: admin@gmail.com",
-                                    scale=1
+                                sub_size_slider = gr.Slider(
+                                    minimum=14,
+                                    maximum=40,
+                                    value=18,
+                                    step=1,
+                                    label="🔤 Cỡ chữ Phụ đề (Mặc định 18):",
+                                    scale=2
                                 )
-                                b_shared_drive = gr.Textbox(
-                                    label="📂 Thư mục báo cáo CSV (Local / Google Drive):",
-                                    value="outputs",
-                                    scale=1
+
+                        with gr.Accordion("🚀 TỰ ĐỘNG ĐĂNG YOUTUBE NGAY SAU KHI RENDER (1-CLICK AUTO UPLOAD)", open=True):
+                            with gr.Row():
+                                yt_privacy_t1 = gr.Dropdown(
+                                    label="Chế độ riêng tư YouTube:",
+                                    choices=["Riêng tư / Hẹn giờ (private)", "Công khai (public)", "Không công khai (unlisted)"],
+                                    value="Riêng tư / Hẹn giờ (private)",
+                                    scale=2
+                                )
+                            with gr.Row():
+                                editor_email_t1 = gr.Textbox(
+                                    label="Email người phụ trách (Ghi log CSV nhóm):",
+                                    placeholder="VD: editor@gmail.com",
+                                    scale=3
+                                )
+                                shared_drive_folder_t1 = gr.Textbox(
+                                    label="Thư mục Google Drive dùng chung (Lưu quan_ly_san_xuat.csv):",
+                                    value="/content/drive/MyDrive/BAO CAO CONG VIEC",
+                                    scale=3
                                 )
 
                         with gr.Row():
-                            batch_run_only_btn = gr.Button("📦 BẮT ĐẦU CHẠY MẺ BATCH (CHỈ TẠO VIDEO)", variant="secondary", size="lg", scale=1)
-                            batch_run_and_upload_btn = gr.Button("🚀 1-CLICK BATCH: TẠO XONG 1 VIDEO LÀ UPLOAD YOUTUBE LUÔN", variant="primary", size="lg", scale=1)
+                            generate_btn = gr.Button("🚀 BẮT ĐẦU TẠO VIDEO ESSAY NGAY (CHỈ TẠO)", variant="secondary", size="lg", scale=1)
+                            generate_and_upload_btn = gr.Button("🎬 TẠO VIDEO & TỰ ĐỘNG ĐĂNG YOUTUBE", variant="primary", size="lg", scale=1)
 
                     with gr.Column(scale=5):
-                        b_video_out = gr.Video(label="🎬 Video MP4 hoàn tất gần nhất:")
-                        b_status_out = gr.Textbox(label="📊 Tiến độ toàn bộ mẻ & Kết quả Đăng YouTube:", lines=12)
+                        status_display = gr.Textbox(label="Trạng thái tiến trình xử lý:", interactive=False, lines=6)
+                        video_output = gr.Video(label="🎬 Video MP4 Thành Phẩm (Native 9:16 Full Frame + Khớp Subtitle):")
+                        with gr.Row():
+                            audio_output = gr.Audio(label="🎙️ Audio Lời Bình Đã Hòa Âm (WAV):", type="filepath", scale=2)
+                            srt_output = gr.File(label="📄 Tải file phụ đề (.SRT):", scale=2)
+                        gallery_output = gr.Gallery(label="🖼️ Phân cảnh hình ảnh & Thumbnail CTR Booster:", columns=4, height=180)
 
-            # ==========================================================
-            # TAB 3: ĐĂNG & LÊN LỊCH PHÁT HÀNH YOUTUBE (OAUTH2 STUDIO)
-            # ==========================================================
-            with gr.TabItem("🚀 TAB 3: ĐĂNG & LÊN LỊCH PHÁT HÀNH YOUTUBE"):
-                gr.Markdown("### 🎯 1. CHỌN NGUỒN VIDEO ĐĂNG LÊN YOUTUBE:")
-                video_source_mode = gr.Radio(
-                    choices=[
-                        "🎬 Video vừa tạo ở Tab 1 (Mặc định)",
-                        "📁 Chọn từ danh sách các video đã tạo (outputs/)",
-                        "💻 Tải lên file video từ máy tính"
-                    ],
-                    value="🎬 Video vừa tạo ở Tab 1 (Mặc định)",
-                    label="Nguồn video cần đăng:"
-                )
-
+            # =================================================================
+            # TAB 2: TẠO HÀNG LOẠT (BATCH PROCESSING)
+            # =================================================================
+            with gr.Tab("📦 TAB 2: TẠO VIDEO HÀNG LOẠT (BATCH PROCESSING)"):
                 with gr.Row():
-                    history_vids_dropdown = gr.Dropdown(
-                        label="📁 Chọn video trong thư mục outputs/ (Chỉ hiển thị video hoàn thiện):",
-                        choices=get_available_rendered_videos(),
-                        value=get_available_rendered_videos()[0] if get_available_rendered_videos() else None,
-                        scale=3
-                    )
-                    refresh_vids_btn = gr.Button("🔄 Làm mới danh sách outputs/", scale=1)
+                    with gr.Column(scale=6):
+                        b_channel_profile = gr.Dropdown(
+                            label="📺 Chọn Hồ Sơ Kênh cho Đợt Batch này:",
+                            choices=list(CHANNEL_PROFILES_PRESET.keys()),
+                            value="🕯️ Trinh Thám & Kinh Dị Gothic (Kênh Nỗi Sợ AudioBook)"
+                        )
+                        b_visual_concept_box = gr.Textbox(
+                            label="🎨 Mỹ thuật / Concept cho loạt kịch bản:",
+                            value=CHANNEL_PROFILES_PRESET["🕯️ Trinh Thám & Kinh Dị Gothic (Kênh Nỗi Sợ AudioBook)"]["visual_concept"],
+                            lines=1
+                        )
+                        with gr.Row():
+                            batch_files_upload = gr.File(
+                                label="📂 Tải lên nhiều file .txt:",
+                                file_count="multiple",
+                                file_types=[".txt"],
+                                scale=3
+                            )
+                            batch_folder_input = gr.Textbox(
+                                label="📁 Hoặc đường dẫn thư mục kịch bản:",
+                                placeholder="/content/drive/MyDrive/KichBan",
+                                scale=3
+                            )
 
-                custom_video_file = gr.File(label="💻 Hoặc tải file video MP4 bất kỳ từ máy tính của bạn:")
+                        with gr.Row():
+                            b_aspect_ratio = gr.Radio(
+                                label="Định dạng khung hình:",
+                                choices=["16:9 Ngang (1920x1080)", "9:16 Dọc (1080x1920)"],
+                                value="16:9 Ngang (1920x1080)",
+                                scale=3
+                            )
+                            b_visual_mode = gr.Dropdown(
+                                label="Phương pháp hình ảnh:",
+                                choices=VISUAL_MODES_V20,
+                                value=VISUAL_MODES_V20[0],
+                                scale=3
+                            )
 
-                gr.Markdown(
-                    "### ⏰ 2. TÍNH NĂNG HẸN GIỜ LÊN LỊCH ĐĂNG (SCHEDULE PUBLISH):\n"
-                    "*(Hệ thống hỗ trợ đặt giờ phát hành tự động theo định dạng `YYYY-MM-DD HH:MM` — Múi giờ Việt Nam GMT+7)*"
-                )
-                schedule_cb = gr.Checkbox(label="⏰ Bật Hẹn Giờ Lên Lịch Đăng Tự Động (Tự động công khai đúng giờ)", value=False)
+                        with gr.Row():
+                            b_voice = gr.Dropdown(
+                                label="Giọng đọc VieNeu:",
+                                choices=VOICE_OPTIONS,
+                                value=VOICE_OPTIONS[0],
+                                scale=3
+                            )
+                            b_btn_preview_voice = gr.Button("🎧 Nghe thử giọng", scale=1)
+                            b_check_published = gr.Checkbox(
+                                label="🛡️ Bỏ qua kịch bản đã đăng (Kiểm tra quan_ly_san_xuat.csv)",
+                                value=True,
+                                scale=2
+                            )
+
+                        b_preview_voice_audio = gr.Audio(label="Nghe thử giọng (Batch):", type="filepath", interactive=False)
+
+                        with gr.Row():
+                            b_editor_email = gr.Textbox(label="Email người làm (Báo cáo CSV):", scale=3)
+                            b_shared_drive = gr.Textbox(label="Thư mục Drive dùng chung:", value="/content/drive/MyDrive/BAO CAO CONG VIEC", scale=3)
+
+                        with gr.Row():
+                            batch_run_btn = gr.Button("🚀 BẮT ĐẦU CHẠY BATCH (CHỈ TẠO)", variant="secondary", size="lg")
+                            batch_run_and_upload_btn = gr.Button("🎬 CHẠY BATCH & TỰ ĐỘNG ĐĂNG YOUTUBE", variant="primary", size="lg")
+
+                    with gr.Column(scale=6):
+                        batch_status_box = gr.Textbox(label="Nhật ký xử lý hàng loạt:", lines=18, interactive=False)
+
+            # =================================================================
+            # TAB 3: ĐĂNG & LÊN LỊCH PHÁT HÀNH YOUTUBE
+            # =================================================================
+            with gr.Tab("🚀 TAB 3: ĐĂNG & LÊN LỊCH PHÁT HÀNH YOUTUBE"):
                 with gr.Row():
-                    custom_sched_time_box = gr.Textbox(
-                        label="Ngày giờ phát hành YouTube (Định dạng: YYYY-MM-DD HH:MM):",
-                        placeholder=f"VD: {sample_time_vn}",
-                        value="",
-                        lines=1,
-                        scale=3
-                    )
-                    btn_fill_sample = gr.Button(f"📋 Dán nhanh mốc 19:30 ngày mai", variant="secondary", scale=1)
+                    with gr.Column(scale=6):
+                        yt_channel_dropdown = gr.Dropdown(
+                            label="📺 Chọn Hồ Sơ Kênh cần đăng (Tự động tải đúng token tương ứng):",
+                            choices=list(CHANNEL_PROFILES_PRESET.keys()),
+                            value="🕯️ Trinh Thám & Kinh Dị Gothic (Kênh Nỗi Sợ AudioBook)"
+                        )
+                        yt_video_source = gr.Radio(
+                            label="Nguồn Video:",
+                            choices=[
+                                "🎬 Video vừa tạo ở Tab 1 (Mặc định)",
+                                "📁 Chọn từ danh sách thư mục outputs/",
+                                "💻 Tải file video tùy chọn từ máy tính"
+                            ],
+                            value="🎬 Video vừa tạo ở Tab 1 (Mặc định)"
+                        )
+                        history_vids_dropdown = gr.Dropdown(
+                            label="Danh sách video trong outputs/:",
+                            choices=get_available_rendered_videos(outputs_dir),
+                            value=get_available_rendered_videos(outputs_dir)[0]
+                        )
+                        custom_vid_upload = gr.File(label="Tải video từ máy:", file_types=[".mp4", ".mov", ".mkv"])
 
-                gr.Markdown("### 📝 3. THÔNG TIN VIDEO YOUTUBE (TỰ ĐỘNG ĐỒNG BỘ HOẶC TÙY BIẾN):")
-                yt_title_box = gr.Textbox(label="Tiêu đề Video YouTube:", lines=1)
-                yt_desc_box = gr.Textbox(label="Mô tả Video (SEO Description & Chapters):", lines=5)
-                yt_tags_box = gr.Textbox(
-                    label="Thẻ Tags YouTube (Mặc định chuẩn SEO):",
-                    value="Audiobook, truyện trinh thám, kinh dị gothic, sách nói kinh dị, video essay",
-                    lines=1
-                )
-                yt_privacy_tab3 = gr.Dropdown(
-                    label="Chế độ đăng (Khi không hẹn giờ):",
-                    choices=["private", "unlisted", "public"],
-                    value="private"
-                )
+                        yt_title_box = gr.Textbox(label="Tiêu đề YouTube (Tối đa 100 ký tự):", lines=1)
+                        yt_desc_box = gr.Textbox(label="Mô tả YouTube (Đã kèm Timestamps & Hashtags):", lines=6)
+                        yt_tags_box = gr.Textbox(label="Thẻ Tags (Cách nhau bằng dấu phẩy):", value=DEFAULT_TAGS, lines=2)
 
-                gr.Markdown("### 🔑 4. XÁC THỰC TÀI KHOẢN YOUTUBE (OAUTH 2.0 CHUẨN https://localhost):")
-                with gr.Row():
-                    secrets_file_box = gr.File(label="Tải file client_secret.json lên đây (hoặc để sẵn ở thư mục gốc / configs):")
-                    redirect_uri_box = gr.Textbox(
-                        label="Redirect URI (Mặc định https://localhost):",
-                        value="https://localhost"
-                    )
+                        with gr.Row():
+                            schedule_cb = gr.Checkbox(label="⏰ Lên lịch phát hành tự động", value=True, scale=1)
+                            custom_sched_time_box = gr.Textbox(
+                                label="Thời gian hẹn giờ (YYYY-MM-DD HH:MM):",
+                                value=sample_tomorrow_vn,
+                                scale=2
+                            )
+                            yt_privacy_status = gr.Dropdown(
+                                label="Trạng thái nếu không hẹn giờ:",
+                                choices=["private", "public", "unlisted"],
+                                value="private",
+                                scale=1
+                            )
 
-                with gr.Row():
-                    get_url_btn = gr.Button("🔗 BƯỚC 1: LẤY LINK ĐĂNG NHẬP GOOGLE", variant="secondary")
-                oauth_url_display = gr.Textbox(label="Link & Hướng dẫn ủy quyền chi tiết:", interactive=False, lines=5)
+                        yt_upload_btn = gr.Button("🚀 XÁC NHẬN TẢI LÊN YOUTUBE NGAY", variant="primary", size="lg")
 
-                with gr.Row():
-                    auth_code_box = gr.Textbox(
-                        label="Dán TOÀN BỘ URL localhost vào đây (bắt đầu bằng https://localhost/?state=...):",
-                        placeholder="https://localhost/?state=...&code=...",
-                        scale=3
-                    )
-                    save_token_btn = gr.Button("💾 BƯỚC 2: XÁC THỰC & LƯU TOKEN", variant="primary", scale=2)
-                token_status_box = gr.Textbox(label="Trạng thái Token:", interactive=False, lines=2)
+                    with gr.Column(scale=6):
+                        yt_result_box = gr.Textbox(label="Kết quả tải lên YouTube:", lines=10, interactive=False)
 
-                gr.Markdown("### 👥 5. QUẢN LÝ TIẾN ĐỘ & BÁO CÁO DÙNG CHUNG:")
-                with gr.Row():
-                    tab3_editor_email = gr.Textbox(label="📧 Email Người Phụ Trách:", placeholder="ví dụ: admin@gmail.com", scale=2)
-                    tab3_shared_folder = gr.Textbox(label="📂 Thư mục báo cáo CSV (Local / Google Drive):", value="outputs", scale=2)
+                        with gr.Accordion("🔑 XÁC THỰC OAUTH2 YOUTUBE (NẾU CHƯA CÓ TOKEN)", open=False):
+                            secrets_file_upload = gr.File(label="Tải lên client_secret.json:", file_types=[".json"])
+                            redirect_uri_box = gr.Textbox(label="Redirect URI:", value="https://localhost")
+                            btn_get_auth_url = gr.Button("👉 Bước 1: Lấy link đăng nhập Google")
+                            auth_instruction_box = gr.Textbox(label="Hướng dẫn xác thực & Link đăng nhập:", lines=5, interactive=False)
+                            auth_code_box = gr.Textbox(label="👉 Bước 2: Dán mã code hoặc toàn bộ URL chuyển hướng vào đây:")
+                            btn_verify_code = gr.Button("✅ Bước 3: Xác thực & Lưu Token vĩnh viễn")
+                            token_verify_status = gr.Textbox(label="Trạng thái xác thực:", interactive=False)
 
-                upload_yt_btn = gr.Button("📤 ĐĂNG / LÊN LỊCH VIDEO LÊN YOUTUBE NGAY", variant="primary", size="lg")
-                yt_status_box = gr.Textbox(label="Kết quả đăng / hẹn giờ YouTube:", interactive=False, lines=5)
+        # =====================================================================
+        # SỰ KIỆN GIAO DIỆN (EVENT HANDLERS)
+        # =====================================================================
 
-        # ==========================================================
-        # EVENT BINDINGS (KẾT NỐI SỰ KIỆN TƯƠNG TÁC)
-        # ==========================================================
-        # 1. TAB 1: SẢN XUẤT ĐƠN LẺ
-        def handle_tab1(
-            script, ratio, visual_mode, art_style, sync_mode, num_scenes,
-            pexels_key, gemini_key, gemini_model, allow_reuse, voice,
-            topic_title, title_size, title_style, bgm_up, bgm_gd,
-            bgm_vol, add_sub, sub_color, waveform, sub_size,
-            privacy, email, shared_folder, auto_up
-        ):
+        # Cập nhật thông tin khi đổi Hồ sơ Kênh
+        def on_channel_profile_change(prof_name):
+            prof = get_channel_profile(prof_name)
+            return prof["visual_concept"], prof["voice"], prof["tags"], prof["desc_template"]
+
+        channel_profile_dropdown.change(
+            fn=on_channel_profile_change,
+            inputs=[channel_profile_dropdown],
+            outputs=[visual_concept_box, voice_dropdown, yt_tags_box, yt_desc_box]
+        )
+
+        b_channel_profile.change(
+            fn=lambda p: (get_channel_profile(p)["visual_concept"], get_channel_profile(p)["voice"]),
+            inputs=[b_channel_profile],
+            outputs=[b_visual_concept_box, b_voice]
+        )
+
+        # Nghe thử giọng VieNeu
+        btn_preview_voice.click(
+            fn=lambda v: preview_voice_sample(v, temp_dir=temp_dir),
+            inputs=[voice_dropdown],
+            outputs=[preview_voice_audio]
+        )
+        b_btn_preview_voice.click(
+            fn=lambda v: preview_voice_sample(v, temp_dir=temp_dir),
+            inputs=[b_voice],
+            outputs=[b_preview_voice_audio]
+        )
+
+        # Bóc tách kịch bản khi rời ô text
+        def on_script_blur(raw_text, current_profile):
+            t, v, _, d, s = extract_script_components(raw_text, channel_profile=current_profile)
+            prof = get_channel_profile(current_profile)
+            return t, t, d if d else prof.get("desc_template", ""), bool(s), s if s else sample_tomorrow_vn
+
+        script_box.blur(
+            fn=on_script_blur,
+            inputs=[script_box, channel_profile_dropdown],
+            outputs=[title_top_box, yt_title_box, yt_desc_box, schedule_cb, custom_sched_time_box]
+        )
+
+        btn_clear_script.click(fn=lambda: "", outputs=[script_box])
+
+        # Đọc file kịch bản tải lên
+        def load_script_file(f):
+            if not f:
+                return ""
+            p = f.name if hasattr(f, "name") else str(f)
+            try:
+                with open(p, "r", encoding="utf-8") as fl:
+                    return fl.read()
+            except Exception:
+                return ""
+
+        script_file_upload.change(fn=load_script_file, inputs=[script_file_upload], outputs=[script_box])
+
+        # Tab 1: Tạo video chỉ render
+        def handle_tab1_generate(*args):
             return process_full_pipeline(
-                script_input=script,
-                aspect_ratio=ratio,
-                visual_mode=visual_mode,
-                sync_mode_choice=sync_mode,
-                num_scenes_slider=num_scenes,
-                pexels_key_input=pexels_key,
-                gemini_api_key_input=gemini_key,
-                gemini_model_input=gemini_model,
-                allow_reuse_input=allow_reuse,
-                voice_selected=voice,
-                topic_title_custom=topic_title,
-                title_font_size=title_size,
-                title_style=title_style,
-                bgm_file=bgm_up,
-                bgm_gdrive_url=bgm_gd,
-                bgm_volume=bgm_vol,
-                add_subtitles=add_sub,
-                sub_color=sub_color,
-                waveform_style=waveform,
-                retention_cuts_enabled=True,
-                sub_font_size=sub_size,
-                art_style=art_style,
-                auto_upload_yt=auto_up,
-                yt_privacy=privacy,
-                editor_email=email,
-                shared_drive_folder=shared_folder
+                script_input=args[0],
+                aspect_ratio=args[1],
+                visual_mode=args[2],
+                sync_mode_choice=args[3],
+                num_scenes_slider=args[4],
+                pexels_key_input=args[5],
+                gemini_api_key_input=args[6],
+                gemini_model_input=args[7],
+                allow_reuse_input=args[8],
+                voice_selected=args[9],
+                topic_title_custom=args[10],
+                title_size_slider=args[11],
+                title_style_dropdown=args[12],
+                bgm_file=args[13],
+                bgm_gdrive_url=args[14],
+                bgm_volume=args[15],
+                add_subtitles=args[16],
+                sub_color=args[17],
+                waveform_style=args[18],
+                retention_cuts_enabled=args[19],
+                sub_font_size=args[20],
+                auto_upload_yt=False,
+                yt_privacy=args[21],
+                editor_email=args[22],
+                shared_drive_folder=args[23],
+                channel_profile=args[24],
+                custom_visual_concept=args[25],
+                custom_yt_tags="",
+                custom_yt_desc="",
+                temp_dir=temp_dir,
+                outputs_dir=outputs_dir
             )
 
-        tab1_inputs_list = [
-            script_box, aspect_ratio_radio, visual_mode_dropdown, art_style_dropdown, sync_mode_dropdown,
-            num_scenes_slider, pexels_key_box, gemini_key_box, gemini_model_dropdown,
-            allow_reuse_box, voice_dropdown, topic_title_box, title_size_slider,
-            title_style_dropdown, bgm_upload, bgm_gdrive_box, bgm_vol_slider,
-            add_sub_cb, sub_color_dropdown, waveform_dropdown, sub_size_slider,
-            yt_privacy_dropdown, editor_email_box, shared_drive_box
+        # Tab 1: Tạo video và tự động đăng YouTube
+        def handle_tab1_generate_and_upload(*args):
+            return process_full_pipeline(
+                script_input=args[0],
+                aspect_ratio=args[1],
+                visual_mode=args[2],
+                sync_mode_choice=args[3],
+                num_scenes_slider=args[4],
+                pexels_key_input=args[5],
+                gemini_api_key_input=args[6],
+                gemini_model_input=args[7],
+                allow_reuse_input=args[8],
+                voice_selected=args[9],
+                topic_title_custom=args[10],
+                title_size_slider=args[11],
+                title_style_dropdown=args[12],
+                bgm_file=args[13],
+                bgm_gdrive_url=args[14],
+                bgm_volume=args[15],
+                add_subtitles=args[16],
+                sub_color=args[17],
+                waveform_style=args[18],
+                retention_cuts_enabled=args[19],
+                sub_font_size=args[20],
+                auto_upload_yt=True,
+                yt_privacy=args[21],
+                editor_email=args[22],
+                shared_drive_folder=args[23],
+                channel_profile=args[24],
+                custom_visual_concept=args[25],
+                custom_yt_tags="",
+                custom_yt_desc="",
+                temp_dir=temp_dir,
+                outputs_dir=outputs_dir
+            )
+
+        tab1_inputs = [
+            script_box, aspect_ratio_radio, visual_mode_dropdown, sync_mode_dropdown,
+            num_scenes_slider, pexels_key_box, gemini_key_box, gemini_model_dropdown, allow_reuse_cb,
+            voice_dropdown, title_top_box, title_size_slider, title_style_dropdown,
+            bgm_upload, bgm_gdrive_box, bgm_vol_slider, add_subtitles_cb, sub_color_dropdown,
+            waveform_dropdown, retention_cuts_cb, sub_size_slider, yt_privacy_t1,
+            editor_email_t1, shared_drive_folder_t1, channel_profile_dropdown, visual_concept_box
         ]
 
-        # Nút 1: Chỉ tạo video
-        generate_only_btn.click(
-            fn=lambda *args: handle_tab1(*args, False),
-            inputs=tab1_inputs_list,
-            outputs=[
-                video_output, audio_output, srt_output, gallery_output,
-                status_output, display_title, display_desc
-            ]
+        generate_btn.click(
+            fn=handle_tab1_generate,
+            inputs=tab1_inputs,
+            outputs=[video_output, audio_output, srt_output, gallery_output, status_display, yt_title_box, yt_desc_box]
         )
 
-        # Nút 2: 1-Click tạo & tự đăng YouTube luôn
         generate_and_upload_btn.click(
-            fn=lambda *args: handle_tab1(*args, True),
-            inputs=tab1_inputs_list,
-            outputs=[
-                video_output, audio_output, srt_output, gallery_output,
-                status_output, display_title, display_desc
-            ]
+            fn=handle_tab1_generate_and_upload,
+            inputs=tab1_inputs,
+            outputs=[video_output, audio_output, srt_output, gallery_output, status_display, yt_title_box, yt_desc_box]
         )
 
-        # 2. TAB 2: SẢN XUẤT HÀNG LOẠT
-        def handle_tab2(
-            batch_files, batch_folder, ratio, voice, art_style, sub_size,
-            privacy, email, shared_folder,
-            b_gemini_key, b_gemini_model, b_pexels_key,
-            tab1_gemini_key, tab1_gemini_model, tab1_pexels_key,
-            title_size, title_style, bgm_up, bgm_gd, bgm_vol,
-            add_sub, sub_color, waveform,
-            auto_up
-        ):
-            # Tự động kế thừa API key từ Tab 1 nếu Tab 2 để trống
-            effective_gemini_key = b_gemini_key.strip() if b_gemini_key and b_gemini_key.strip() else tab1_gemini_key.strip()
-            effective_gemini_model = b_gemini_model if b_gemini_model else tab1_gemini_model
-            effective_pexels_key = b_pexels_key.strip() if b_pexels_key and b_pexels_key.strip() else tab1_pexels_key.strip()
-
+        # Tab 2: Batch processing
+        def handle_tab2_batch(*args):
             return process_batch_pipeline(
-                batch_files=batch_files,
-                batch_folder_path=batch_folder,
-                aspect_ratio=ratio,
-                visual_mode="SDXL (AI Hình Ảnh Ẩn Dụ)",
-                sync_mode_choice="Tự động (Theo phụ đề Whisper)",
-                num_scenes_slider=15,
-                pexels_key_input=effective_pexels_key,
+                uploaded_files=args[0],
+                folder_path=args[1],
+                aspect_ratio=args[2],
+                visual_mode=args[3],
+                sync_mode_choice=args[4],
+                num_scenes_slider=12,
+                pexels_key_input=args[5],
+                gemini_api_key_input=args[6],
+                gemini_model_input=args[7],
                 allow_reuse_input=False,
-                voice_selected=voice,
-                title_font_size=title_size,
-                title_style=title_style,
-                bgm_file=bgm_up,
-                bgm_gdrive_url=bgm_gd,
-                bgm_volume=bgm_vol,
-                add_subtitles=add_sub,
-                sub_color=sub_color,
-                waveform_style=waveform,
-                retention_cuts_enabled=True,
-                tab1_gemini_key=effective_gemini_key,
-                editor_email=email,
-                shared_drive_folder=shared_folder,
-                sub_font_size=sub_size,
-                b_gemini_key=effective_gemini_key,
-                b_gemini_model=effective_gemini_model,
-                art_style=art_style,
-                auto_upload_batch=auto_up,
-                b_yt_privacy=privacy
+                voice_selected=args[8],
+                editor_email=args[9],
+                shared_drive_folder=args[10],
+                channel_profile=args[11],
+                custom_visual_concept=args[12],
+                check_published_first=args[13],
+                auto_upload_yt=args[14],
+                temp_dir=temp_dir,
+                outputs_dir=outputs_dir
             )
 
-        tab2_inputs_list = [
-            batch_files_box, batch_folder_box, b_aspect_ratio, b_voice_dropdown, b_art_style, b_sub_size,
-            b_yt_privacy, b_editor_email, b_shared_drive,
-            b_gemini_key_box, b_gemini_model_dropdown, b_pexels_key_box,
-            gemini_key_box, gemini_model_dropdown, pexels_key_box,
-            title_size_slider, title_style_dropdown, bgm_upload, bgm_gdrive_box, bgm_vol_slider,
-            add_sub_cb, sub_color_dropdown, waveform_dropdown
-        ]
-
-        # Nút 1: Chạy mẻ chỉ tạo video
-        batch_run_only_btn.click(
-            fn=lambda *args: handle_tab2(*args, False),
-            inputs=tab2_inputs_list,
-            outputs=[
-                b_video_out, b_status_out
-            ]
+        batch_run_btn.click(
+            fn=lambda *a: handle_tab2_batch(*a, False),
+            inputs=[
+                batch_files_upload, batch_folder_input, b_aspect_ratio, b_visual_mode, sync_mode_dropdown,
+                pexels_key_box, gemini_key_box, gemini_model_dropdown, b_voice,
+                b_editor_email, b_shared_drive, b_channel_profile, b_visual_concept_box, b_check_published
+            ],
+            outputs=[batch_status_box]
         )
 
-        # Nút 2: 1-Click BATCH: Tạo xong 1 video là upload YouTube luôn!
         batch_run_and_upload_btn.click(
-            fn=lambda *args: handle_tab2(*args, True),
-            inputs=tab2_inputs_list,
-            outputs=[
-                b_video_out, b_status_out
-            ]
+            fn=lambda *a: handle_tab2_batch(*a, True),
+            inputs=[
+                batch_files_upload, batch_folder_input, b_aspect_ratio, b_visual_mode, sync_mode_dropdown,
+                pexels_key_box, gemini_key_box, gemini_model_dropdown, b_voice,
+                b_editor_email, b_shared_drive, b_channel_profile, b_visual_concept_box, b_check_published
+            ],
+            outputs=[batch_status_box]
         )
 
-        # 3. TAB 3: Các nút tiện ích
-        btn_fill_sample.click(
-            fn=get_sample_tomorrow_time,
-            outputs=[custom_sched_time_box]
+        # Tab 3: Upload YouTube
+        yt_upload_btn.click(
+            fn=upload_to_youtube,
+            inputs=[
+                yt_video_source, video_output, history_vids_dropdown, custom_vid_upload,
+                yt_title_box, yt_desc_box, yt_tags_box, schedule_cb, custom_sched_time_box,
+                yt_privacy_status, editor_email_t1, shared_drive_folder_t1
+            ],
+            outputs=[yt_result_box]
         )
 
-        refresh_vids_btn.click(
-            fn=lambda: gr.update(choices=get_available_rendered_videos(), value=get_available_rendered_videos()[0] if get_available_rendered_videos() else None),
-            outputs=[history_vids_dropdown]
-        )
-
-        get_url_btn.click(
+        # OAuth helpers
+        btn_get_auth_url.click(
             fn=get_youtube_auth_url,
-            inputs=[secrets_file_box, redirect_uri_box],
-            outputs=[oauth_url_display, redirect_uri_box]
+            inputs=[secrets_file_upload, redirect_uri_box],
+            outputs=[auth_instruction_box, redirect_uri_box]
         )
 
-        save_token_btn.click(
+        btn_verify_code.click(
             fn=verify_oauth_code_and_save_token,
             inputs=[auth_code_box, redirect_uri_box],
-            outputs=[token_status_box]
-        )
-
-        # 4. TAB 3: Logic xử lý tải lên YouTube
-        def handle_tab3_manual_upload(
-            source_mode: str,
-            tab1_video: Any,
-            history_video_name: str,
-            uploaded_file: Any,
-            title: str,
-            description: str,
-            tags: str,
-            is_sched: bool,
-            sched_time: str,
-            privacy: str,
-            email: str,
-            shared_folder: str
-        ) -> str:
-            resolved_tab1 = resolve_file_path(tab1_video)
-            resolved_custom = resolve_file_path(uploaded_file)
-            resolved_hist = None
-
-            if history_video_name and not str(history_video_name).startswith("("):
-                cand = os.path.join("outputs", history_video_name)
-                if os.path.exists(cand):
-                    resolved_hist = cand
-
-            target_path = None
-            if "máy tính" in str(source_mode).lower():
-                target_path = resolved_custom
-            elif "outputs" in str(source_mode).lower():
-                target_path = resolved_hist
-            else:
-                target_path = resolved_tab1 or resolved_hist or resolved_custom
-
-            if not target_path or not os.path.exists(target_path):
-                return f"❌ Lỗi: Không tìm thấy file video hợp lệ để tải lên! (Nguồn đang chọn: {source_mode})"
-
-            return upload_to_youtube(
-                video_file_path=target_path,
-                title=title,
-                description=description,
-                tags=tags,
-                is_schedule=is_sched,
-                custom_schedule_time=sched_time,
-                privacy_status=privacy,
-                editor_email=email,
-                shared_drive_folder=shared_folder,
-                outputs_dir="outputs"
-            )
-
-        upload_yt_btn.click(
-            fn=handle_tab3_manual_upload,
-            inputs=[
-                video_source_mode, video_output, history_vids_dropdown, custom_video_file,
-                yt_title_box, yt_desc_box, yt_tags_box, schedule_cb, custom_sched_time_box,
-                yt_privacy_tab3, tab3_editor_email, tab3_shared_folder
-            ],
-            outputs=[yt_status_box]
+            outputs=[token_verify_status]
         )
 
     return demo

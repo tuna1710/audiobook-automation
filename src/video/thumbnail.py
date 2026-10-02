@@ -2,19 +2,39 @@ import os
 import re
 import shutil
 import subprocess
+from typing import Tuple
 
-def extract_thumbnail_metadata(raw_script: str, fallback_title: str):
+
+def find_system_font(fonts_dir: str = "fonts") -> str:
+    """Tìm font chữ hỗ trợ tiếng Việt trên hệ thống."""
+    font_path = os.path.join(fonts_dir, "BeVietnamPro-Bold.ttf")
+    if os.path.exists(font_path):
+        return font_path
+
+    candidates = [
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+        "/usr/share/fonts/truetype/freefont/FreeSansBold.ttf",
+        "C:\\Windows\\Fonts\\arialbd.ttf"
+    ]
+    for c in candidates:
+        if os.path.exists(c):
+            return c
+    return font_path
+
+
+def extract_thumbnail_metadata(raw_script: str, fallback_title: str) -> Tuple[str, str]:
     """
-    BÓC TÁCH DỮ LIỆU THUMBNAIL TỪ KỊCH BẢN:
+    BÓC TÁCH DỮ LIỆU THUMBNAIL TỪ KỊCH BẢN V20:
     - Tìm text gợi ý ngắn gọn (3 - 5 chữ).
     - Tìm visual prompt cho thumbnail nếu có.
     """
     thumb_text = ""
     text_patterns = [
         r'(?:-\s*Chữ lớn trên ảnh\s*(?:\(tối đa \d+ chữ\))?\s*:\s*)([^\r\n]+)',
-        r'(?:-\s*Text gợi ý hiển thị trên Thumbnail.*?:\s*)([^\r\n]+)',
-        r'(?:Text gợi ý trên Thumbnail.*?:\s*)([^\r\n]+)',
-        r'(?:Text Thumbnail.*?:\s*)([^\r\n]+)'
+        r'(?:-\s*Text gợi ý hiển thị trên Thumbnail.*:\s*)([^\r\n]+)',
+        r'(?:Text gợi ý trên Thumbnail.*:\s*)([^\r\n]+)',
+        r'(?:Text Thumbnail.*:\s*)([^\r\n]+)'
     ]
     for pat in text_patterns:
         m = re.search(pat, raw_script, re.IGNORECASE)
@@ -45,32 +65,36 @@ def extract_thumbnail_metadata(raw_script: str, fallback_title: str):
 
     return thumb_text.strip().upper(), thumb_visual.strip()
 
+
 def generate_ctr_booster_thumbnail(
     video_path: str,
     raw_script: str,
     fallback_title: str,
     session_id: str,
+    visual_mode: str = "",
+    gemini_api_key: str = "",
+    gemini_model: str = "gemini-3.5-flash-lite",
     outputs_dir: str = "outputs",
     fonts_dir: str = "fonts"
 ) -> str:
     """
-    TỰ ĐỘNG TẠO THUMBNAIL YOUTUBE CTR BOOSTER (1280x720 HD):
+    TỰ ĐỘNG TẠO THUMBNAIL YOUTUBE CTR BOOSTER (1280x720 HD) V20:
     - Bóc tách Text giật gân từ kịch bản (ví dụ: "THƯỢC DƯỢC ĐEN").
-    - Tạo ảnh nền 1280x720 từ video cao trào hoặc Gothic Noir background.
+    - Tạo ảnh nền 1280x720 từ trích xuất khung hình cao trào từ video (15-30s) hoặc nền Gothic Noir.
     - Chèn chữ Vàng viền đen khối 3D, đổ bóng sâu, đặt ở Safe Zone (Center-Left) tránh đè mốc thời lượng YouTube.
     """
-    thumb_text, _ = extract_thumbnail_metadata(raw_script, fallback_title)
+    os.makedirs(outputs_dir, exist_ok=True)
+    thumb_text, thumb_visual = extract_thumbnail_metadata(raw_script, fallback_title)
     if not thumb_text:
         thumb_text = "HỒ SƠ KỲ ÁN"
 
-    os.makedirs(outputs_dir, exist_ok=True)
     out_thumb_path = os.path.join(outputs_dir, f"thumbnail_{session_id}.jpg")
     latest_thumb_path = os.path.join(outputs_dir, "thumbnail_latest.jpg")
     raw_base_path = os.path.join(outputs_dir, f"raw_base_{session_id}.jpg")
 
     base_ready = False
 
-    # 1. Trích xuất khung hình đắt giá từ video (giây 15 - 30)
+    # Ưu tiên 1: Trích xuất khung hình đắt giá từ video (giây 15 - 30)
     if video_path and os.path.exists(video_path) and os.path.getsize(video_path) > 10000:
         for ss_time in ["00:00:20", "00:00:15", "00:00:30", "00:00:05"]:
             try:
@@ -90,7 +114,7 @@ def generate_ctr_booster_thumbnail(
             except Exception:
                 pass
 
-    # 2. Nếu chưa có nền từ video, tạo nền Gothic Noir điện ảnh siêu thực
+    # Ưu tiên 2: Nếu chưa có nền từ video, tạo nền Gothic Noir điện ảnh siêu thực
     if not base_ready:
         try:
             cmd_bg = [
@@ -106,11 +130,7 @@ def generate_ctr_booster_thumbnail(
         except Exception:
             pass
 
-    # Áp dụng Typography CTR Booster với Be Vietnam Pro
-    font_path = os.path.join(fonts_dir, "BeVietnamPro-Bold.ttf")
-    if not os.path.exists(font_path):
-        font_path = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
-
+    font_path = find_system_font(fonts_dir)
     escaped_font = str(font_path).replace(':', r'\:')
     escaped_text = thumb_text.replace("'", "'\\''").replace(':', r'\:')
 
@@ -149,7 +169,9 @@ def generate_ctr_booster_thumbnail(
         print(f"⚠️ Lỗi render chữ Thumbnail: {e_draw}")
 
     if os.path.exists(raw_base_path):
-        try: os.remove(raw_base_path)
-        except Exception: pass
+        try:
+            os.remove(raw_base_path)
+        except Exception:
+            pass
 
-    return out_thumb_path if os.path.exists(out_thumb_path) else latest_thumb_path
+    return out_thumb_path

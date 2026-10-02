@@ -3,7 +3,8 @@ import re
 import time
 import json
 import urllib.parse
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Tuple
+from ..pipeline.channel_profiles import get_channel_profile
 
 ART_STYLE_TEMPLATES = {
     "pencil": {
@@ -28,38 +29,6 @@ ART_STYLE_TEMPLATES = {
     }
 }
 
-VI_TO_EN_MAP = {
-    "ô tô": "vintage automobile",
-    "xe hơi": "car",
-    "xe": "vehicle",
-    "mưa": "rain",
-    "đêm": "night",
-    "tối": "darkness",
-    "phố": "street",
-    "đường": "alley",
-    "nhà": "building",
-    "người": "solitary figure",
-    "đàn ông": "man",
-    "phụ nữ": "woman",
-    "rừng": "forest",
-    "biển": "ocean",
-    "núi": "mountain",
-    "vụ án": "crime mystery",
-    "bí ẩn": "mystery",
-    "cảnh sát": "investigator",
-    "thám tử": "detective",
-    "sương mù": "mist",
-    "đèn": "streetlamp",
-    "đồng hồ": "antique clock",
-    "cửa sổ": "rainy window",
-    "bức thư": "old handwritten letter",
-    "căn phòng": "dimly lit study room",
-    "bước chân": "mysterious footsteps in fog",
-    "mặt nạ": "Venetian porcelain mask",
-    "bóng tối": "shadowy silhouette",
-    "ngọn lửa": "flickering candle flame"
-}
-
 
 def get_style_template(art_style: str) -> dict:
     style_str = str(art_style).lower()
@@ -72,353 +41,458 @@ def get_style_template(art_style: str) -> dict:
     return ART_STYLE_TEMPLATES["cinematic"]
 
 
-def transliterate_fallback_vietnamese(text: str, cut_part: int = 0) -> str:
+def extract_gemini_candidate_text(candidates: list) -> str:
     """
-    Dịch nhanh các danh từ thị giác tiếng Việt sang tiếng Anh khi phải dùng fallback prompt.
-    Hỗ trợ biến đổi góc máy nếu là Part 2 (Góc máy phụ).
+    Trích xuất nội dung văn bản chuẩn xác từ danh sách candidates của Gemini API.
+    Tự động lọc bỏ các khối 'thought' (suy nghĩ nội bộ / chain-of-thought) của Gemini 3.x & 2.5
+    để trả về 100% kết quả thực sự (JSON hoặc Subtitles).
     """
-    lowered = text.lower()
-    found_keywords = []
-    for vi_w, en_w in VI_TO_EN_MAP.items():
-        if vi_w in lowered:
-            found_keywords.append(en_w)
-    core = ", ".join(found_keywords[:3]) if found_keywords else "a dramatic moody mystery scene"
+    if not candidates or not isinstance(candidates, list):
+        return ""
+    cand = candidates[0]
+    if not isinstance(cand, dict):
+        return ""
+    content = cand.get("content", {})
+    parts = content.get("parts", []) if isinstance(content, dict) else []
+    if not parts:
+        return ""
 
-    if cut_part == 2:
-        part2_prefixes = [
-            f"dramatic low-angle view of {core}",
-            f"extreme close-up macro detail of {core}",
-            f"atmospheric over-the-shoulder POV shot of {core}",
-            f"wide aerial bird-eye perspective of {core}"
-        ]
-        import random
-        return random.choice(part2_prefixes)
+    # 1. Thu thập tất cả các part KHÔNG phải suy nghĩ nội bộ (thought != True)
+    non_thought_parts = []
+    for p in parts:
+        if isinstance(p, dict) and not p.get("thought", False):
+            t = p.get("text", "")
+            if t:
+                non_thought_parts.append(t)
+    if non_thought_parts:
+        return "".join(non_thought_parts).strip()
 
-    return f"a scene featuring {core}"
+    # 2. Nếu không tìm thấy non-thought part, thu thập toàn bộ text
+    all_parts = [p.get("text", "") for p in parts if isinstance(p, dict) and p.get("text")]
+    return "".join(all_parts).strip()
 
 
-def parse_gemini_json_response(raw_text: str) -> Dict[int, str]:
+def clean_gemini_model_name(raw_model_str: str, default_model: str = "gemini-3.5-flash-lite") -> str:
     """
-    Bộ giải mã JSON siêu cấp 3 tầng, có khả năng tự động hàn gắn chuỗi JSON bị cắt cụt (Unterminated string).
-    Tuyệt đối không quăng ngoại lệ làm gián đoạn pipeline.
+    Chuẩn hóa tên model Gemini từ giao diện Gradio thành tên model API chính thức mới nhất theo tài liệu Google AI (Thế hệ Gemini 3).
+    Hỗ trợ 100% các endpoint Active & Stable: gemini-3.5-flash-lite, gemini-3.1-flash-lite, gemini-3.5-flash, gemini-3.6-flash, gemini-3.7-flash, gemini-3.8-flash.
+    Loại bỏ hoàn toàn các model đã tắt hoặc bị chặn 404.
+    """
+    if not raw_model_str:
+        return default_model
+    s = str(raw_model_str).lower().strip()
+    if '3.8' in s:
+        return 'gemini-3.8-flash'
+    if '3.7' in s:
+        return 'gemini-3.7-flash'
+    if '3.6' in s:
+        return 'gemini-3.6-flash'
+    if '3.5-flash-lite' in s or ('3.5' in s and 'lite' in s):
+        return 'gemini-3.5-flash-lite'
+    if '3.1-flash-lite' in s or ('3.1' in s and 'lite' in s) or '3.1' in s:
+        return 'gemini-3.1-flash-lite'
+    if '3.5' in s:
+        return 'gemini-3.5-flash'
+    if '3-flash' in s:
+        return 'gemini-3-flash-preview'
+    if '2.5-flash' in s:
+        return 'gemini-2.5-flash'
+    if 'flash-lite' in s or 'lite' in s:
+        return 'gemini-3.5-flash-lite'
+    if 'flash' in s:
+        return 'gemini-3.5-flash-lite'
+    return default_model
+
+
+def parse_all_in_one_gemini_response(raw_text: str) -> Tuple[Dict[int, str], List[Tuple[float, str]]]:
+    """
+    Bộ giải mã JSON siêu cấp cho All-in-One Gemini Director.
+    Tự động bóc tách cả mảng scenes và chapters mà không quăng ngoại lệ.
+    Hỗ trợ các khối markdown ```json ... ``` hoặc JSON lồng trong văn bản tự nhiên.
     """
     if not raw_text or not raw_text.strip():
-        return {}
+        return {}, []
 
     clean = raw_text.strip()
-    clean = re.sub(r"^```json\s*", "", clean, flags=re.MULTILINE)
-    clean = re.sub(r"^```\s*", "", clean, flags=re.MULTILINE).strip()
 
-    # Cách 1: Parse JSON chuẩn
+    # Tìm block JSON nằm giữa ```json ... ``` hoặc giữa { ... }
+    json_target = clean
+    m_block = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", clean, re.DOTALL)
+    if m_block:
+        json_target = m_block.group(1).strip()
+    else:
+        s_idx = clean.find('{')
+        e_idx = clean.rfind('}')
+        if s_idx != -1 and e_idx != -1 and e_idx > s_idx:
+            json_target = clean[s_idx:e_idx + 1].strip()
+
+    def sec_to_float(val):
+        try:
+            if isinstance(val, (int, float)):
+                return float(val)
+            s_val = str(val).strip()
+            if ':' in s_val:
+                parts = s_val.split(':')
+                if len(parts) == 2:
+                    return float(parts[0]) * 60 + float(parts[1])
+                elif len(parts) == 3:
+                    return float(parts[0]) * 3600 + float(parts[1]) * 60 + float(parts[2])
+            return float(s_val)
+        except Exception:
+            return 0.0
+
+    scenes_dict = {}
+    chapters_list = []
+
+    # 1. Parse JSON chuẩn
     try:
-        data = json.loads(clean)
-        if isinstance(data, list):
-            res = {}
-            for item in data:
-                if isinstance(item, dict) and "index" in item and "prompt" in item:
-                    res[int(item["index"])] = str(item["prompt"]).strip()
-            if res:
-                return res
-        elif isinstance(data, dict):
-            res = {}
-            for k, v in data.items():
-                if isinstance(v, str):
-                    digits = re.findall(r"\d+", str(k))
-                    if digits:
-                        res[int(digits[0])] = v.strip()
-                elif isinstance(v, list):
-                    for item in v:
-                        if isinstance(item, dict) and "index" in item and "prompt" in item:
-                            res[int(item["index"])] = str(item["prompt"]).strip()
-            if res:
-                return res
+        data = json.loads(json_target)
+        if isinstance(data, dict):
+            for ch in data.get('chapters', []):
+                t = sec_to_float(ch.get('time', 0))
+                title = str(ch.get('title', '')).strip()
+                if title:
+                    chapters_list.append((t, title))
+            for sc in data.get('scenes', []):
+                idx = int(sc.get('index', 0))
+                p = str(sc.get('prompt', '')).strip()
+                if idx > 0 and p:
+                    scenes_dict[idx] = p
+            if scenes_dict:
+                return scenes_dict, chapters_list
     except Exception:
         pass
 
-    # Cách 2: Tự động đóng mảng JSON tại vị trí đối tượng hoàn chỉnh gần nhất (sửa lỗi đứt đuôi chuỗi)
-    last_brace = clean.rfind("}")
-    if last_brace != -1:
-        truncated_valid = clean[:last_brace + 1].strip()
-        if not truncated_valid.startswith("["):
-            truncated_valid = "[" + truncated_valid
-        truncated_valid = truncated_valid.rstrip().rstrip(",") + "]"
-        try:
-            data = json.loads(truncated_valid)
-            if isinstance(data, list):
-                res = {}
-                for item in data:
-                    if isinstance(item, dict) and "index" in item and "prompt" in item:
-                        res[int(item["index"])] = str(item["prompt"]).strip()
-                if res:
-                    return res
-        except Exception:
-            pass
-
-    # Cách 3: Regex quét toàn bộ các cặp {"index": X, "prompt": "..."} hoàn chỉnh
-    res = {}
-    p1 = r'\{\s*"index"\s*:\s*(\d+)\s*,\s*"prompt"\s*:\s*"(.*?)(?<!\\)"'
-    for m in re.finditer(p1, clean, re.DOTALL):
+    # 2. Regex fallback quét scenes
+    p_scenes = r'\{\s*"index"\s*:\s*(\d+)\s*,\s*"prompt"\s*:\s*"([^"\\]*(?:\\.[^"\\]*)*)"'
+    for m in re.finditer(p_scenes, clean, re.DOTALL):
         idx = int(m.group(1))
         p = m.group(2).replace('\"', '"').replace('\n', ' ').strip()
-        res[idx] = p
+        scenes_dict[idx] = p
 
-    p2 = r'\{\s*"prompt"\s*:\s*"(.*?)(?<!\\)"\s*,\s*"index"\s*:\s*(\d+)'
-    for m in re.finditer(p2, clean, re.DOTALL):
-        idx = int(m.group(2))
-        p = m.group(1).replace('\"', '"').replace('\n', ' ').strip()
-        if idx not in res:
-            res[idx] = p
+    # 3. Regex fallback quét chapters
+    p_chap = r'\{\s*"time"\s*:\s*([^,}\s]+)\s*,\s*"title"\s*:\s*"([^"\\]*(?:\\.[^"\\]*)*)"'
+    for m in re.finditer(p_chap, clean, re.DOTALL):
+        t = sec_to_float(m.group(1).replace('"', '').strip())
+        title = m.group(2).replace('\"', '"').strip()
+        if title:
+            chapters_list.append((t, title))
 
+    return scenes_dict, chapters_list
+
+
+def parse_gemini_json_response(raw_text: str) -> dict:
+    """Tương thích ngược với hàm parse_gemini_json_response cũ."""
+    sc, _ = parse_all_in_one_gemini_response(raw_text)
+    return sc
+
+
+def analyze_sentence_to_detective_prompt(
+    sentence_text: str,
+    cut_part: int,
+    cut_index: int,
+    topic_title: str = "",
+    visual_concept: str = "",
+    recent_concepts: list = None,
+    channel_profile: str = ""
+) -> str:
+    """
+    Chế độ Dự phòng Thông minh (Smart Fallback Engine) Chuẩn Trinh Thám & Gothic Noir.
+    100% bóc tách từ khóa hung khí, hiện trường, nhân vật, bối cảnh trực tiếp từ câu sub.
+    Loại bỏ sạch 100% từ khóa thiền định / chữa lành lạc đề.
+    Nếu là hồ sơ kênh khác, sử dụng kho từ khóa của hồ sơ đó.
+    """
+    prof = get_channel_profile(channel_profile) if channel_profile else {}
+    if prof and "Gothic" not in channel_profile and "Trinh Thám" not in channel_profile and "Nỗi Sợ" not in channel_profile:
+        fallback_kws = prof.get("fallback_keywords", [])
+        p_suffix = prof.get("style_suffix", "")
+        if fallback_kws:
+            kw = fallback_kws[cut_index % len(fallback_kws)]
+            v_desc = visual_concept[:60] if visual_concept else prof.get("visual_concept", "")[:60]
+            return f"Cinematic scene of {kw}, atmospheric lighting, visual setting: {v_desc}{p_suffix}"
+
+    clean_txt = sentence_text.lower()
+    if recent_concepts is None:
+        recent_concepts = []
+
+    semantic_map = [
+        # 1. Hung khí & Nguy hiểm (Ưu tiên nhận diện đồ vật cụ thể)
+        (["dao", "súng", "hung khí", "đạn", "đâm", "bắn", "vũ khí", "lưỡi dao", "khẩu súng", "thuốc độc", "độc dược", "bột trắng", "lọ thuốc"],
+         "extreme close-up of antique silver revolver and tarnished dagger resting on worn velvet desk beside spilled amber poison vial, dramatic candle light, 8k"),
+
+        # 2. Thư từ, Mật mã, Nhật ký & Bằng chứng
+        (["thư", "nhật ký", "tài liệu", "hồ sơ", "di chúc", "bức ảnh", "phong bì", "niêm phong", "chữ ký", "mật mã", "trang giấy", "bút mực"],
+         "close-up of handwritten cryptic letter sealed with cracked crimson wax lying on dark mahogany desk beside extinguished cigar smoke, atmospheric 35mm"),
+
+        # 3. Đồng hồ, Nửa đêm & Áp lực thời gian
+        (["đồng hồ", "nửa đêm", "thời gian", "tích tắc", "chuông", "hồi hộp", "chờ đợi", "khoảnh khắc", "giây", "12 giờ"],
+         "antique ornate grandfather clock pendulum swinging inside dark study, clock hands pointing exactly at midnight, dramatic chiaroscuro lighting"),
+
+        # 4. Thám tử, Điều tra & Manh mối dấu vết
+        (["thám tử", "kính lúp", "manh mối", "dấu vết", "dấu chân", "điều tra", "soi", "kiểm tra", "vân tay", "suy luận", "chứng cứ", "đèn bão"],
+         "sharp silhouette of Victorian detective holding brass magnifying glass closely examining muddy footprints on carpet, dust motes in gaslight, 35mm photo"),
+
+        # 5. Hiện trường vụ án, Thi thể & Vết máu
+        (["chết", "thi thể", "xác chết", "máu", "vết máu", "ám sát", "sát hại", "giết", "tử thi", "nạn nhân", "nghi phạm", "tội ác", "hiện trường"],
+         "Victorian crime scene inside dimly lit parlor with chalk outline and bloodstains on dark wooden floorboards, moody gaslamp chiaroscuro, 35mm film still"),
+
+        # 6. Kiến trúc Gothic, Cửa, Cầu thang & Ngục tối
+        (["cửa", "cầu thang", "hành lang", "phòng", "gác mái", "hầm", "ngục", "lâu đài", "biệt thự", "khóa", "chìa khóa", "két sắt", "cửa sổ", "rèm"],
+         "eerie Victorian gothic mansion hallway with creaking wooden spiral staircase, cold moonlight streaming through arched stained-glass window, heavy shadows"),
+
+        # 7. Bóng đen, Rình rập, Bước chân & Kinh hoàng
+        (["bóng", "bóng đen", "bước chân", "tiếng động", "kinh hoàng", "sợ hãi", "rình rập", "đuổi theo", "trốn", "hắn", "kẻ sát nhân", "tiếng gõ", "tiếng thét"],
+         "tall menacing shadowy silhouette in dark trench coat and top hat standing motionless under flickering gaslamp, intense psychological thriller"),
+
+        # 8. Mưa đêm, Sương mù & Ngoại cảnh bí ẩn
+        (["mưa", "đêm", "tối", "sương mù", "bão", "sấm sét", "nghĩa trang", "mộ", "bia mộ", "xe ngựa", "đường phố", "hẻm", "sông", "cầu", "tháp"],
+         "deserted cobblestone London street enveloped in dense swirling night fog, glowing gas streetlamps, distant lone black horse carriage, gothic noir"),
+
+        # 9. Nhà xác, Y tế cổ & Khám nghiệm
+        (["bác sĩ", "khám nghiệm", "nhà xác", "bệnh viện", "thuốc", "y tế", "dụng cụ", "hộp sọ", "xương", "mổ", "băng ca"],
+         "Victorian medical laboratory with glass specimen jars, vintage brass surgical instruments and dim green banker lamp, macabre gothic atmosphere")
+    ]
+
+    matched_concept = None
+    for keywords, concept in semantic_map:
+        if any(k in clean_txt for k in keywords):
+            if concept not in recent_concepts[-3:]:
+                matched_concept = concept
+                break
+
+    if not matched_concept:
+        fallback_vault = [
+            "dimly lit 19th century Victorian study with leather armchairs, dusty manuscripts and flickering green banker lamp, gothic noir, chiaroscuro",
+            "mysterious shadowy silhouette of detective in trench coat holding brass lantern in foggy cobblestone alley at midnight, 35mm film",
+            "antique wooden floorboards in dark bedroom with eerie moonlight streaming through arched window, gothic suspense",
+            "close-up of intricate antique brass pocket watch resting on aged bloodstained telegram, dramatic shadows, 8k",
+            "creepy Victorian gothic manor standing isolated on misty moor under cold full moon, dark cinematic atmosphere",
+            "flickering candle flame casting grotesque distorted shadows against cracked stone cellar wall, macabre mystery",
+            "heavy wrought-iron cemetery gates shrouded in dense swirling twilight fog, bare twisted dead trees",
+            "detective magnifying glass examining mysterious muddy footprint on vintage wooden floor, moody chiaroscuro lighting",
+            "half-open secret bookcase doorway revealing dark hidden spiral stone staircase leading down into blackness",
+            "solitary oil lamp flickering in window of remote Victorian cottage on cliff edge overlooking crashing dark waves"
+        ]
+        available_fallbacks = [f for f in fallback_vault if f not in recent_concepts[-4:]]
+        if not available_fallbacks:
+            available_fallbacks = fallback_vault
+        matched_concept = available_fallbacks[cut_index % len(available_fallbacks)]
+
+    recent_concepts.append(matched_concept)
+
+    if cut_part == 2:
+        part2_angles = [
+            f"dramatic low-angle cinematic perspective of {matched_concept}, intense moody atmosphere",
+            f"extreme close-up macro detail of {matched_concept}, shallow depth of field, dust motes in gaslight",
+            f"over-the-shoulder atmospheric POV shot of {matched_concept}, rich cinematic contrast",
+            f"wide aerial view looking down at {matched_concept}, gothic composition"
+        ]
+        matched_concept = part2_angles[cut_index % len(part2_angles)]
+
+    full_prompt = f"cinematic 35mm photograph of {matched_concept}, gothic noir, chiaroscuro lighting, 8k resolution"
+    return " ".join(full_prompt.split()[:42])
+
+
+# Alias tương thích ngược
+analyze_sentence_to_metaphor_prompt = analyze_sentence_to_detective_prompt
+
+
+def call_gemini_all_in_one_director(
+    cuts: list,
+    full_speech: str,
+    topic_title: str,
+    visual_concept: str,
+    gemini_key: str,
+    selected_model: str = "gemini-3.5-flash-lite",
+    channel_profile: str = "🕯️ Trinh Thám & Kinh Dị Gothic (Kênh Nỗi Sợ AudioBook)"
+) -> Tuple[Dict[int, str], List[Tuple[float, str]]]:
+    """
+    TỐI ƯU HÓA 1 LẦN GỌI DUY NHẤT (ALL-IN-ONE SINGLE REQUEST) - HỖ TRỢ GÓI MIỄN PHÍ:
+    Sinh đồng thời:
+    1. Prompts chi tiết bám sát 100% câu chữ từng cảnh (Subtitle-Locked Visuals, NO METAPHOR).
+    2. Danh sách mốc YouTube Chapters chuẩn SEO từ các mốc thời gian thực tế.
+    Tự động Fallback đa tầng qua các Model Free Tier ổn định nhất kèm Exponential Backoff Retry chống lỗi 503 / 429.
+    """
+    if not gemini_key or not gemini_key.strip():
+        return {}, []
+
+    import requests
+    cleaned_key = gemini_key.strip().strip('"').strip("'").strip()
+    clean_model = clean_gemini_model_name(selected_model, default_model="gemini-3.5-flash-lite")
+    total_cuts = len(cuts)
+
+    prof = get_channel_profile(channel_profile)
+    genre_role = prof.get("genre_role", "Đạo diễn Hình ảnh Điện ảnh (Cinematic Storyboard Director)")
+    active_concept = visual_concept if (visual_concept and len(visual_concept.strip()) > 5) else prof.get("visual_concept", "")
+    profile_style_suffix = prof.get("style_suffix", ", cinematic photorealistic, 35mm film still, 8k photorealistic")
+
+    print(f"🤖 Đang kết nối AI Đạo Diễn (Gemini {clean_model}) - Chế độ All-in-One (1 Request duy nhất cho {total_cuts} cảnh & Chapters)...")
+
+    # Tối ưu kích thước batch: 45 cảnh/đợt (Tránh lỗi 503 quá tải máy chủ Google khi kịch bản dài)
+    chunk_size = 45
+    if total_cuts <= chunk_size:
+        batches = [cuts]
+    else:
+        batches = [cuts[i:i + chunk_size] for i in range(0, total_cuts, chunk_size)]
+        print(f"📦 Kịch bản dài ({total_cuts} cảnh): Chia làm {len(batches)} đợt gọi Gemini (tối ưu {chunk_size} cảnh/lần)...")
+
+    all_prompts = {}
+    all_chapters = []
+
+    for b_idx, batch_cuts in enumerate(batches):
+        if b_idx > 0:
+            time.sleep(2.5)
+
+        cuts_summary = []
+        for c in batch_cuts:
+            st_m = int(c["start"]) // 60
+            st_s = int(c["start"]) % 60
+            time_tag = f"{st_m:02d}:{st_s:02d}"
+            cuts_summary.append(f'Cảnh {c["index"]} [{time_tag}]: "{c["text"]}"')
+
+        formatted_cuts_text = "\n".join(cuts_summary)
+
+        system_prompt = f"""Bạn là {genre_role}.
+Nhiệm vụ của bạn:
+1. Đọc danh sách các phân cảnh phụ đề dưới đây.
+2. Xây dựng 5-8 Chương YouTube (Chapters) kịch tính chuẩn SEO tương ứng với mốc thời gian thực tế (chỉ cần tạo ở đợt đầu).
+3. Với MỖI CÂU PHỤ ĐỀ, hãy viết 1 mô tả hình ảnh TẢ THỰC ĐIỆN ẢNH bằng tiếng Anh (15-25 từ) để sinh ảnh SDXL.
+
+QUY TẮC BẮT BUỘC ĐỂ HÌNH ĐI CÙNG SUB 100%:
+- TUYỆT ĐỐI KHÔNG DÙNG HÌNH ẨN DỤ (NO METAPHORS / NO ABSTRACT SYMBOLS).
+- PHẢI TẢ THỰC TRỰC DIỆN: Câu phụ đề đang nói về ai, làm gì, đồ vật gì, ở đâu thì hình ảnh PHẢI THỂ HIỆN CHÍNH XÁC điều đó (Ví dụ: câu nói "Hắn rút khẩu súng lục bạc" -> "extreme close-up of a sinister man drawing an antique silver revolver, cold moonlight, chiaroscuro").
+- Cấu trúc prompt SDXL: [Chủ thể & Hành động cụ thể đang diễn ra trong câu], [Góc máy: Close-up / POV / Over-the-shoulder / Low-angle], Victorian Gothic 19th Century setting, moody chiaroscuro lighting, 35mm cinematic film still, 8k.
+- Duy trì tính nhất quán nhân vật và không gian gothic u ám.
+
+TÁC PHẨM: {topic_title}
+KHÔNG GIAN/CONCEPT CHỦ ĐẠO: {active_concept}
+
+DANH SÁCH {len(batch_cuts)} PHÂN CẢNH PHỤ ĐỀ:
+{formatted_cuts_text}
+
+HÃY TRẢ VỀ ĐÚNG ĐỊNH DẠNG JSON SAU (không dùng markdown ```json):
+{{
+  "chapters": [
+    {{"time": 0, "title": "Lời Mở Đầu & Hiện Trường Bí Ẩn"}},
+    {{"time": {int(batch_cuts[min(len(batch_cuts)-1, 15)]['start'])}, "title": "Manh Mối Trong Đêm Tối"}}
+  ],
+  "scenes": [
+    {{"index": {batch_cuts[0]["index"]}, "prompt": "a shadowy detective in black trenchcoat holding a brass lantern in foggy alley, 35mm film still, chiaroscuro, 8k"}},
+    {{"index": {batch_cuts[-1]["index"]}, "prompt": "extreme close-up of terrified pale man with wide bloodshot eyes in shadows, 35mm photography"}}
+  ]
+}}"""
+
+        target_models = [clean_model]
+        for fm in ["gemini-3.5-flash-lite", "gemini-3.1-flash-lite", "gemini-3.5-flash", "gemini-3.6-flash", "gemini-3.7-flash", "gemini-3.8-flash", "gemini-3-flash-preview", "gemini-2.5-flash"]:
+            if fm not in target_models:
+                target_models.append(fm)
+
+        payload = {
+            "contents": [{"parts": [{"text": system_prompt}]}],
+            "generationConfig": {
+                "maxOutputTokens": 8192,
+                "responseMimeType": "application/json"
+            }
+        }
+
+        batch_succeeded = False
+
+        for model_name in target_models:
+            if batch_succeeded:
+                break
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={cleaned_key}"
+            headers = {"Content-Type": "application/json"}
+
+            max_retries = 3
+            backoff_delays = [3.0, 6.0, 10.0]
+
+            for attempt in range(max_retries):
+                try:
+                    resp = requests.post(url, headers=headers, json=payload, timeout=65)
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        candidates = data.get("candidates", [])
+                        if candidates:
+                            raw_out = extract_gemini_candidate_text(candidates)
+                            sc_dict, ch_list = parse_all_in_one_gemini_response(raw_out)
+                            if sc_dict:
+                                for c_idx, raw_p in sc_dict.items():
+                                    p_clean = raw_p.strip()
+                                    if "gothic" not in p_clean.lower() and "chiaroscuro" not in p_clean.lower():
+                                        p_clean = f"Cinematic shot of {p_clean}{profile_style_suffix}"
+                                    all_prompts[c_idx] = p_clean
+
+                                if ch_list and not all_chapters:
+                                    all_chapters = ch_list
+
+                                batch_succeeded = True
+                                print(f"  ✨ [Đợt {b_idx+1}/{len(batches)}] Thành công với model {model_name}: Đã sinh {len(sc_dict)} prompt bám sát phụ đề & {len(ch_list)} chapters!")
+                                break
+                            else:
+                                print(f"  ⚠️ [Đợt {b_idx+1}/{len(batches)}] Model {model_name} trả về HTTP 200 nhưng cấu trúc JSON chưa khớp, chuyển sang model dự phòng...")
+                                break
+                    elif resp.status_code in [429, 503]:
+                        if attempt < max_retries - 1:
+                            wait_time = backoff_delays[attempt]
+                            reason = "máy chủ Google quá tải (Mã 503)" if resp.status_code == 503 else "chạm giới hạn tạm thời (Mã 429)"
+                            print(f"  ⏳ [Đợt {b_idx+1}/{len(batches)}] Model {model_name} {reason}. Thử lại lần {attempt+2}/{max_retries} sau {wait_time}s...")
+                            time.sleep(wait_time)
+                            continue
+                        else:
+                            print(f"  ⚠️ [Đợt {b_idx+1}/{len(batches)}] Model {model_name} vẫn bận sau {max_retries} lần thử (Mã {resp.status_code}). Chuyển model dự phòng...")
+                            break
+                    elif resp.status_code == 404:
+                        print(f"  ⚠️ Model {model_name} không khả dụng (Mã 404). Chuyển model dự phòng...")
+                        break
+                    else:
+                        print(f"  ⚠️ Model {model_name} phản hồi HTTP {resp.status_code}. Chuyển model dự phòng...")
+                        break
+                except Exception as e:
+                    if attempt < max_retries - 1:
+                        wait_time = backoff_delays[attempt]
+                        time.sleep(wait_time)
+                        continue
+                    else:
+                        break
+
+        # Nếu cả đợt này tất cả model Gemini đều không phản hồi: Cứu hộ cục bộ từng cảnh
+        if not batch_succeeded:
+            print(f"  🛡️ [Đợt {b_idx+1}/{len(batches)}] Kích hoạt Smart Engine cứu hộ cho {len(batch_cuts)} cảnh theo Hồ Sơ Kênh...")
+            for b_cut in batch_cuts:
+                fb_p = analyze_sentence_to_detective_prompt(
+                    b_cut.get("text", ""),
+                    b_cut.get("part", 0),
+                    b_cut.get("index", 1),
+                    topic_title=topic_title,
+                    visual_concept=active_concept,
+                    channel_profile=channel_profile
+                )
+                all_prompts[b_cut["index"]] = fb_p
+
+    if all_prompts:
+        print(f"🎉 Hoàn tất AI Đạo Diễn All-in-One: Đã sinh thành công {len(all_prompts)}/{total_cuts} prompt bám sát phụ đề & {len(all_chapters)} YouTube Chapters!")
+        return all_prompts, all_chapters
+
+    print("⚠️ Tất cả các model Gemini đều không phản hồi. Tự động chuyển sang Chế Độ Dự Phòng Thông Minh (Nội bộ 100%).")
+    return {}, []
+
+
+def call_gemini_ai_director(cuts, full_speech: str, topic_title: str, visual_concept: str, gemini_key: str, selected_model: str = "gemini-3.5-flash-lite"):
+    """Alias tương thích ngược."""
+    prompts, _ = call_gemini_all_in_one_director(cuts, full_speech, topic_title, visual_concept, gemini_key, selected_model)
+    return prompts if prompts else None
+
+
+def generate_micro_batch_visual_prompts(cuts, visual_concept: str, api_key: str, model_name: str = "gemini-3.5-flash-lite", art_style: str = "cinematic", batch_size: int = 45):
+    """Tương thích với các gọi hàm cũ."""
+    sc_dict, _ = call_gemini_all_in_one_director(cuts, "", "", visual_concept, api_key, selected_model=model_name)
+    res = []
+    for c in cuts:
+        idx = c.get("index", len(res) + 1)
+        res.append(sc_dict.get(idx, ""))
     return res
 
 
-def init_gemini_client(api_key: str):
-    """
-    Khởi tạo Google GenerativeAI client tương thích ngược.
-    """
-    if not api_key:
-        return None
-    try:
-        import google.generativeai as genai
-        genai.configure(api_key=api_key)
-        return genai
-    except Exception as e:
-        return None
-
-
-class GeminiKeyPool:
-    """
-    Quản lý cụm Gemini API Keys xoay tua (Round-robin) và theo dõi trạng thái Cooldown khi gặp lỗi 429 Quota Exceeded.
-    """
-    _instance = None
-
-    def __init__(self):
-        self.cooldowns = {}
-        self.key_usage_count = {}
-
-    @classmethod
-    def get_instance(cls):
-        if cls._instance is None:
-            cls._instance = GeminiKeyPool()
-        return cls._instance
-
-    def parse_keys(self, raw_input: str) -> List[str]:
-        if not raw_input:
-            env_key = os.environ.get("GEMINI_API_KEY", "")
-            if not env_key:
-                try:
-                    from google.colab import userdata
-                    env_key = userdata.get("GEMINI_API_KEY") or ""
-                except Exception:
-                    pass
-            if env_key:
-                return [env_key.strip()]
-            return []
-        keys = [k.strip() for k in re.split(r'[,;\n]+', raw_input) if k.strip()]
-        return keys
-
-    def mark_cooldown(self, key: str, duration_seconds: float = 60.0):
-        self.cooldowns[key] = time.time() + duration_seconds
-
-    def get_available_key(self, raw_input: str) -> Optional[str]:
-        keys = self.parse_keys(raw_input)
-        if not keys:
-            return None
-        now = time.time()
-        for k in keys:
-            if self.cooldowns.get(k, 0) <= now:
-                return k
-        best_key = min(keys, key=lambda k: self.cooldowns.get(k, 0))
-        return best_key
-
-
-def _call_gemini_rest_api(prompt_instruction: str, api_key: str, model_name: str = "gemini-2.5-flash") -> Optional[str]:
-    """
-    Gọi trực tiếp Google Gemini REST API v1beta với chế độ responseMimeType: application/json.
-    Không phụ thuộc vào thư viện bên ngoài và tốc độ phản hồi cực nhanh.
-    """
-    import requests
-    clean_key = api_key.strip().strip('"').strip("'")
-    clean_mod = model_name.replace("models/", "")
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{clean_mod}:generateContent?key={clean_key}"
-
-    headers = {
-        "Content-Type": "application/json",
-        "x-goog-api-key": clean_key
-    }
-    payload = {
-        "contents": [{"parts": [{"text": prompt_instruction}]}],
-        "generationConfig": {
-            "temperature": 0.75,
-            "maxOutputTokens": 8192,
-            "responseMimeType": "application/json"
-        }
-    }
-
-    try:
-        resp = requests.post(url, headers=headers, json=payload, timeout=40)
-        if resp.status_code == 200:
-            data = resp.json()
-            candidates = data.get("candidates", [])
-            if candidates:
-                parts = candidates[0].get("content", {}).get("parts", [])
-                if parts:
-                    return parts[0].get("text", "").strip()
-        elif resp.status_code == 429:
-            return "ERROR_429"
-    except Exception:
-        pass
-    return None
-
-
-def generate_micro_batch_visual_prompts(
-    cuts_text_list: Optional[List[str]] = None,
-    visual_concept: str = "",
-    api_key: str = "",
-    model_name: str = "gemini-2.5-flash",
-    art_style: str = "cinematic",
-    batch_size: int = 25,
-    scenes: Optional[List[str]] = None,
-    cuts: Optional[List[dict]] = None
-) -> List[str]:
-    """
-    AI ĐẠO DIỄN HÌNH ẢNH MẺ LỚN (BATCH 20-25 CẢNH BẰNG JSON API):
-    - Đột phá hiệu năng: 50-100 cảnh chỉ tốn đúng 2-4 lượt gọi API (Tiết kiệm 85% requests, miễn nhiễm 429).
-    - Giữ trọn vẹn mạch cảm xúc (Narrative Continuity) xuyên suốt toàn bộ phân đoạn thoại.
-    - Bộ giải mã JSON 3 tầng tự động hàn gắn chuỗi đứt đuôi nếu LLM bị ngắt kết nối.
-    - Tự động nhận diện phân cảnh Part 2 [Góc máy phụ] để tạo góc quay điện ảnh tương phản.
-    """
-    if cuts is not None and len(cuts) > 0:
-        total_cuts = len(cuts)
-        cuts_data = cuts
-    else:
-        raw_list = cuts_text_list if cuts_text_list is not None else (scenes or [])
-        total_cuts = len(raw_list)
-        cuts_data = [{"index": i + 1, "text": t, "part": 0} for i, t in enumerate(raw_list)]
-
-    if total_cuts == 0:
-        return []
-
-    tmpl = get_style_template(art_style)
-    clean_concept = visual_concept.strip() if visual_concept else ""
-    final_prompts = ["" for _ in range(total_cuts)]
-
-    for idx, c in enumerate(cuts_data):
-        c_txt = c.get("text", "")
-        c_part = c.get("part", 0)
-        core = transliterate_fallback_vietnamese(clean_concept if clean_concept else c_txt, cut_part=c_part)
-        final_prompts[idx] = f"{tmpl['prefix']} {core}{tmpl['suffix']}"
-
-    pool = GeminiKeyPool.get_instance()
-    all_keys = pool.parse_keys(api_key)
-    if not all_keys:
-        return final_prompts
-
-    models_to_try = []
-    base_model = str(model_name).lower()
-    if "pro" in base_model:
-        models_to_try = ["gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.5-flash-lite"]
-    elif "lite" in base_model:
-        models_to_try = ["gemini-2.5-flash-lite", "gemini-2.5-flash", "gemini-2.5-pro"]
-    else:
-        models_to_try = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.5-pro"]
-
-    bs = max(5, min(batch_size, 30))
-    chunks = [cuts_data[i:i + bs] for i in range(0, total_cuts, bs)]
-
-    print(f"🎬 [AI Director JSON Engine] Đang đạo diễn kịch bản {total_cuts} cảnh qua {len(chunks)} mẻ (mỗi mẻ tối đa {bs} cảnh)...")
-
-    for chunk_idx, chunk_cuts in enumerate(chunks):
-        chunk_indices = [c.get("index", i + 1) for i, c in enumerate(chunk_cuts)]
-        cuts_summary = []
-        for c in chunk_cuts:
-            c_idx = c.get("index", 1)
-            part_info = " [Góc máy phụ - Part 2]" if c.get("part") == 2 else ""
-            cuts_summary.append(f'Cảnh {c_idx}{part_info}: "{c.get("text", "")}"')
-
-        formatted_scenes = "\n".join(cuts_summary)
-
-        system_instruction = (
-            f"You are an award-winning Hollywood cinematography director designing a sequential visual storyboard for: {tmpl['director_instruction']}\n\n"
-            f"Story Overall Concept: {clean_concept if clean_concept else 'Cinematic mystery storytelling'}\n\n"
-            f"Sequential Scenes to direct ({len(chunk_cuts)} scenes):\n{formatted_scenes}\n\n"
-            "DIRECTOR MANDATORY INSTRUCTIONS:\n"
-            "1. Shot Variation & Flow:\n"
-            "   - Establish scenes with atmospheric wide or medium shots.\n"
-            "   - For any scene marked '[Góc máy phụ - Part 2]', create an alternate cinematic angle of that concept (dramatic low-angle, extreme macro close-up, over-the-shoulder POV, or wide bird-eye view).\n"
-            "2. Visual Metaphor & Atmosphere:\n"
-            "   - Describe specific physical actions, objects, lighting, and expressions reflecting the narrative.\n"
-            "   - Focus on ONE single subject per scene. Never use plural nouns (no 'cars', 'people'). Avoid fingers/hands.\n"
-            "   - Anti-repetition: Vary focal points so consecutive scenes do not show the exact same object.\n"
-            "3. Length constraint: 12 to 20 English words per scene. Do not include style words like 'sketch' or 'photo'.\n"
-            "4. OUTPUT FORMAT: Return STRICTLY a valid JSON array of objects (no markdown, no conversational text):\n"
-            "[\n"
-            f'  {{"index": {chunk_indices[0]}, "prompt": "a shadowy detective holding a brass lantern in foggy cobblestone alley"}},\n'
-            f'  {{"index": {chunk_indices[-1]}, "prompt": "extreme close-up of an intricate antique pocket watch ticking on mahogany desk"}}\n'
-            "]"
-        )
-
-        chunk_success = False
-
-        for key_idx, current_key in enumerate(all_keys):
-            if chunk_success:
-                break
-            if pool.cooldowns.get(current_key, 0) > time.time() and len(all_keys) > 1:
-                continue
-
-            for cand_model in models_to_try:
-                raw_json_text = _call_gemini_rest_api(system_instruction, current_key, cand_model)
-                if raw_json_text == "ERROR_429":
-                    pool.mark_cooldown(current_key, 40.0)
-                    break
-
-                if raw_json_text and len(raw_json_text) > 10:
-                    parsed_dict = parse_gemini_json_response(raw_json_text)
-                    if parsed_dict and len(parsed_dict) > 0:
-                        for offset, cut_item in enumerate(chunk_cuts):
-                            global_idx = chunk_idx * bs + offset
-                            c_num = cut_item.get("index", global_idx + 1)
-
-                            prompt_val = parsed_dict.get(c_num)
-                            if not prompt_val:
-                                prompt_val = parsed_dict.get(offset + 1)
-
-                            if prompt_val:
-                                clean_p = re.sub(r'["*]', '', prompt_val).strip()
-                                words = clean_p.split()
-                                if len(words) > 22:
-                                    clean_p = " ".join(words[:22])
-                                final_prompts[global_idx] = f"{tmpl['prefix']} {clean_p}{tmpl['suffix']}"
-
-                        chunk_success = True
-                        break
-
-            if chunk_success:
-                break
-
-        if chunk_idx < len(chunks) - 1:
-            time.sleep(0.3)
-
-    print(f"🎉 [AI Director] Hoàn tất lên kịch bản hình ảnh cho {total_cuts} phân cảnh!")
-    return final_prompts
-
-
-def enhance_visual_prompt_gemini(
-    scene_text: str,
-    visual_concept: str,
-    api_key: str,
-    model_name: str = "gemini-2.5-flash",
-    art_style: str = "cinematic"
-) -> str:
-    """
-    Hàm wrapper tương thích ngược: Sinh prompt cho 1 phân cảnh đơn lẻ.
-    """
-    results = generate_micro_batch_visual_prompts(
-        cuts_text_list=[scene_text],
-        visual_concept=visual_concept,
-        api_key=api_key,
-        model_name=model_name,
-        art_style=art_style,
-        batch_size=1
-    )
-    return results[0] if results else f"35mm film photograph of {scene_text[:50]}, cinematic lighting, 8k"
+def enhance_visual_prompt_gemini(scene_text: str, visual_concept: str, api_key: str, model_name: str = "gemini-3.5-flash-lite", art_style: str = "cinematic") -> str:
+    """Tương thích ngược đơn lẻ."""
+    return analyze_sentence_to_detective_prompt(scene_text, 0, 0, visual_concept=visual_concept)

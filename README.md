@@ -1,4 +1,4 @@
-# 🎙️ Audiobook Automation AI Studio (V19.7)
+# 🎙️🎬 Nỗi Sợ AudioBook - Cinema Gothic AI Studio (V20.0)
 
 <p align="center">
   <a href="https://colab.research.google.com/github/tuna1710/audiobook-automation/blob/main/notebooks/Colab_Launcher.ipynb"><img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"></a>
@@ -19,11 +19,21 @@
 ---
 
 > [!IMPORTANT]
-> **🚀 Phiên Bản V19.7 Chính Thức: Module Hóa Đa Nền Tảng & Safe Zone Video Dọc**
-> - **Chuẩn hóa Safe Zone 9:16**: Khắc phục triệt để lỗi toạ độ ảo `libass`, đưa phụ đề về đúng vùng 1/3 dưới màn hình (`Y: 1150 - 1630`), cách xa Tiêu đề **> 900 pixel**, tuyệt đối không bị đè chữ trên TikTok, Shorts và Reels.
-> - **Cỡ chữ điện ảnh mặc định**: Tiêu đề **60**, Phụ đề **18** (chữ Be Vietnam Pro Bold sắc nét).
-> - **Tự động hóa YouTube Chapters**: Tính toán chuẩn xác mốc thời gian thực tế từ âm thanh Whisper và ghi đè vào mô tả video.
-> - **Thumbnail High-CTR Booster**: Tự động render ảnh bìa 1280x720 với chữ vàng viền đen 3D giật gân, an toàn tránh nhãn thời lượng YouTube.
+> **🚀 Phiên Bản V20.0 Chính Thức: Subtitle-Locked Scene Sync & All-in-One Gemini 3.8 Flash**
+> - **📺 Hệ Thống Hồ Sơ Đa Kênh 1-Click (Multi-Channel Profiles)**: 7 preset chuyên biệt với mỹ thuật SDXL, phong cách âm nhạc, giọng đọc, thẻ tags và mẫu mô tả SEO riêng biệt:
+>   1. `🕯️ Trinh Thám & Kinh Dị Gothic (Kênh Nỗi Sợ AudioBook)`
+>   2. `🪷 Phật Pháp, Thiền Định & Chữa Lành Tâm Hồn`
+>   3. `⚔️ Lịch Sử, Cổ Trang & Huyền Sử Hào Hùng`
+>   4. `🚀 Khoa Học, Vũ Trụ & Khám Phá Tri Thức`
+>   5. `🌿 Bài Học Cuộc Sống, Tâm Lý & Podcast`
+>   6. `🧚 Cổ Tích, Thần Thoại & Truyện Dân Gian`
+>   7. `⚙️ Kênh Tùy Chỉnh (Custom Profile Của Riêng Bạn)`
+> - **⚡ Khóa Chặt Phân Cảnh Theo Subtitle (Subtitle-Locked Scene Sync V20)**: 100% hình đi cùng sub, bắt đầu câu thoại nào bức ảnh mới xuất hiện tức thì. Nhịp cắt lý tưởng từ 2.4s đến 6.8s, nối tiếp liền mạch mili-giây, khử sạch hoàn toàn lỗi trôi lệch thời gian.
+> - **🤖 AI Đạo Diễn All-in-One (Gemini 3.8 Flash & Gemini 3.5 Flash Lite)**: 1 API Call duy nhất sinh cả Prompts tả thực trực diện (Direct Narrative Action, NO METAPHORS) và YouTube Chapters SEO. Tích hợp bộ lọc Thinking Blocks và Exponential Backoff Retry (3s, 6s, 10s) chống lỗi 429/503.
+> - **🛡️ Gothic & Detective Smart Fallback Engine**: Phân tích ngữ nghĩa 9 chủ đề trinh thám gothic (hung khí, hiện trường, mật mã, thám tử, mưa đêm...), tạo ảnh 100% độc bản không lo trùng lặp.
+> - **🎬 Kho Video Stock Đa Nguồn (Pexels / Coverr / Mixkit)**: Tự động xoay tua API key và scrape video HD không bản quyền sạch quảng cáo.
+> - **🎧 Nghe Thử Giọng Đọc (Voice Preview)**: Nút phát thử giọng VieNeu-TTS trực tiếp trên WebUI trước khi render.
+> - **📊 Quản Lý Tiến Độ Tránh Trùng Lặp**: Tự động kiểm tra `quan_ly_san_xuat.csv` trên Google Drive dùng chung để bỏ qua kịch bản đã xuất bản thành công.
 
 > [!TIP]
 > **Khởi chạy siêu tốc:** Dự án có thể chạy trực tiếp trên **Google Colab miễn phí** chỉ với 3 ô lệnh qua `notebooks/Colab_Launcher.ipynb`, hoặc chạy ổn định 24/7 trên **Máy tính cá nhân (GPU NVIDIA)**, **VPS đám mây (RunPod, Vast.ai)** và **Docker**.
@@ -135,7 +145,8 @@ audiobook-automation/
 │   │   ├── uploader.py         # Upload video, hẹn giờ công khai, gán thumbnail tự động
 │   │   └── gdrive_logger.py    # Ghi nhận tiến độ công việc nhóm vào file CSV
 │   ├── pipeline/               # 🔄 Bộ điều phối quy trình (Orchestrator: Single & Batch)
-│   │   └── orchestrator.py
+│   │   ├── channel_profiles.py # Hệ thống hồ sơ đa kênh 1-click (7 Profiles preset)
+│   │   └── orchestrator.py     # Subtitle-Locked Scene Sync & All-in-One Director Pipeline
 │   └── ui/                     # 🖥️ Giao diện Gradio Web Studio (Tab 1 & Tab 2)
 │       └── gradio_app.py
 ├── notebooks/

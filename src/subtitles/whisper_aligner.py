@@ -6,6 +6,7 @@ from .formatter import format_timestamp_srt, format_srt_max_two_lines
 
 _GLOBAL_WHISPER_MODEL = None
 
+
 def get_whisper_model(model_name: str = "base", device: str = None):
     global _GLOBAL_WHISPER_MODEL
     if _GLOBAL_WHISPER_MODEL is None:
@@ -18,9 +19,10 @@ def get_whisper_model(model_name: str = "base", device: str = None):
         print("✅ Whisper Subtitle đã sẵn sàng!")
     return _GLOBAL_WHISPER_MODEL
 
+
 def align_script_with_whisper_segments(segments_data, speech_text):
     """
-    HỆ THỐNG CĂN CHỈNH HYBRID V19.2 (DYNAMIC WORD ALIGNMENT):
+    HỆ THỐNG CĂN CHỈNH HYBRID V20 (DYNAMIC WORD ALIGNMENT):
     - Khớp 100% câu từ trong kịch bản chuẩn gốc của tác giả (chuẩn chính tả, tên riêng, dấu câu).
     - Giữ nguyên 100% mốc thời gian start & end thực tế từ âm thanh của Whisper.
     - Xử lý siêu tốc cho kịch bản dài (30 - 60 phút) trong < 0.5s, hoàn toàn ổn định và miễn phí.
@@ -35,7 +37,7 @@ def align_script_with_whisper_segments(segments_data, speech_text):
         pure_speech = speech_text
 
     cleaned_speech = re.sub(
-        r'\[(?:thở dài|hắng giọng|cười|ngắt nghỉ|im lặng|hơi thở)[^\]]*\]', 
+        r'\[(?:thở dài|hắng giọng|cười|ngắt nghỉ|im lặng|hơi thở|thì thầm|tiếng thở|tiếng cười|tiếng động)[^\]]*\]', 
         '', 
         pure_speech, 
         flags=re.IGNORECASE
@@ -67,49 +69,40 @@ def align_script_with_whisper_segments(segments_data, speech_text):
     if not whisper_norm_tokens:
         return segments_data
 
-    matcher = difflib.SequenceMatcher(None, script_norm, whisper_norm_tokens)
-    opcodes = matcher.get_opcodes()
+    matcher = difflib.SequenceMatcher(None, whisper_norm_tokens, script_norm)
+    matching_blocks = matcher.get_matching_blocks()
 
-    whisper_to_script = [None] * len(whisper_norm_tokens)
-    for tag, i1, i2, j1, j2 in opcodes:
-        if tag == 'equal':
-            for offset in range(j2 - j1):
-                whisper_to_script[j1 + offset] = i1 + offset
-        elif tag == 'replace':
-            len_w = j2 - j1
-            len_s = i2 - i1
-            for offset in range(len_w):
-                s_idx = i1 + int(round(offset * len_s / max(1, len_w)))
-                whisper_to_script[j1 + offset] = min(s_idx, max(0, i2 - 1))
-        elif tag == 'insert':
-            pass
-        elif tag == 'delete':
-            pass
-
-    last_valid_s = 0
-    for idx in range(len(whisper_to_script)):
-        if whisper_to_script[idx] is None:
-            whisper_to_script[idx] = last_valid_s
-        else:
-            last_valid_s = whisper_to_script[idx]
+    w_to_s = {}
+    for block in matching_blocks:
+        w_idx = block.a
+        s_idx = block.b
+        size = block.size
+        for offset in range(size):
+            w_to_s[w_idx + offset] = s_idx + offset
 
     aligned_segments = []
     prev_s_end = 0
 
-    for seg_idx, (w_start, w_end, orig_text) in enumerate(seg_ranges):
-        seg = segments_data[seg_idx]
-        if w_start == w_end:
+    for idx, (w_start, w_end, orig_text) in enumerate(seg_ranges):
+        seg = segments_data[idx]
+        if w_start >= w_end:
             aligned_segments.append(seg)
             continue
 
-        s_first = whisper_to_script[w_start]
-        s_last = whisper_to_script[w_end - 1]
+        s_candidates = [w_to_s[w] for w in range(w_start, w_end) if w in w_to_s]
 
-        s_first = max(s_first, prev_s_end)
-        s_last = max(s_last, s_first)
+        if not s_candidates:
+            aligned_segments.append(seg)
+            continue
 
-        if s_last < len(script_tokens) - 1:
-            lookahead = min(len(script_tokens), s_last + 3)
+        s_first = max(prev_s_end, min(s_candidates))
+        s_last = max(s_candidates)
+
+        if s_last < s_first:
+            s_last = s_first
+
+        lookahead = min(len(script_tokens), s_last + 4)
+        if not any(script_tokens[s_last].endswith(p) for p in ['.', '!', '?', '…', ':']):
             for cand in range(s_last, lookahead):
                 if any(script_tokens[cand].endswith(p) for p in ['.', '!', '?', '…', ':']):
                     s_last = cand
@@ -130,7 +123,103 @@ def align_script_with_whisper_segments(segments_data, speech_text):
 
     return aligned_segments
 
-def extract_whisper_segments_and_srt(audio_path: str, speech_text: str, srt_path: str, gemini_api_key: str = "", gemini_model: str = "gemini-2.5-flash", whisper_model=None):
+
+def build_subtitle_retention_cuts(segments, total_dur: float, auto_sync_mode: bool = True, max_scenes_manual: int = 12, enable_retention: bool = True):
+    """
+    BỘ LÊN LỊCH CẮT CẢNH V20: KHÓA CHẶT THEO SUBTITLE (SUBTITLE-LOCKED SCENE SYNC).
+    - Đảm bảo 100% hình đi cùng sub: Bắt đầu câu nói nào -> Bức ảnh mới xuất hiện ngay lập tức.
+    - Khống chế thời lượng mỗi cảnh lý tưởng từ 2.4s - 6.8s (chuẩn nhịp điện ảnh).
+    - Khử hoàn toàn sai số trôi thời gian (drift): Mốc kết thúc cảnh i nối liền mốc bắt đầu cảnh i+1.
+    """
+    if not segments:
+        return [{"index": 1, "start": 0.0, "end": total_dur, "duration": total_dur, "text": "", "is_early": True, "part": 0}]
+
+    if not auto_sync_mode:
+        step = total_dur / max(1, max_scenes_manual)
+        cuts = []
+        for i in range(max_scenes_manual):
+            st = round(i * step, 3)
+            et = round((i + 1) * step, 3)
+            cuts.append({
+                "index": i + 1,
+                "start": st,
+                "end": et,
+                "duration": round(et - st, 3),
+                "text": "",
+                "is_early": st < 120.0,
+                "part": 0
+            })
+        return cuts
+
+    # 1. Gom nhóm các phân đoạn câu rất ngắn (< 2.4s) với câu liền kề để nhịp hình ảnh không bị giật
+    min_cut_dur = 2.4
+    max_cut_dur = 6.8
+    clustered_units = []
+    curr_cluster = []
+    curr_dur = 0.0
+
+    for seg in segments:
+        st = float(seg.get("start", 0.0))
+        et = min(total_dur, float(seg.get("end", 0.0)))
+        s_dur = et - st
+        txt = seg.get("text", "").strip()
+        if s_dur <= 0.15 or not txt:
+            continue
+
+        if not curr_cluster:
+            curr_cluster = [seg]
+            curr_dur = s_dur
+        else:
+            if curr_dur >= min_cut_dur or (curr_dur + s_dur) > max_cut_dur:
+                clustered_units.append(curr_cluster)
+                curr_cluster = [seg]
+                curr_dur = s_dur
+            else:
+                curr_cluster.append(seg)
+                curr_dur += s_dur
+
+    if curr_cluster:
+        clustered_units.append(curr_cluster)
+
+    # 2. Xây dựng danh sách cảnh chuẩn xác mili-giây
+    raw_cuts = []
+    for i, unit in enumerate(clustered_units):
+        st = float(unit[0].get("start", 0.0))
+        txt = " ".join(s.get("text", "").strip() for s in unit)
+        raw_cuts.append({"index": i + 1, "start": st, "text": txt, "is_early": st < 120.0, "part": 0})
+
+    if not raw_cuts:
+        return [{"index": 1, "start": 0.0, "end": total_dur, "duration": total_dur, "text": "", "is_early": True, "part": 0}]
+
+    # 3. Khóa mốc thời gian liền mạch: start của cảnh 0 = 0.0, end của cảnh i = start của cảnh i+1
+    final_cuts = []
+    raw_cuts[0]["start"] = 0.0
+    for i in range(len(raw_cuts)):
+        st = raw_cuts[i]["start"]
+        if i == len(raw_cuts) - 1:
+            et = total_dur
+        else:
+            et = raw_cuts[i + 1]["start"]
+
+        dur = round(max(0.4, et - st), 3)
+        final_cuts.append({
+            "index": i + 1,
+            "start": st,
+            "end": et,
+            "duration": dur,
+            "text": raw_cuts[i]["text"],
+            "is_early": raw_cuts[i]["is_early"],
+            "part": raw_cuts[i]["part"]
+        })
+
+    return final_cuts
+
+
+# Alias tương thích ngược
+build_retention_cuts = build_subtitle_retention_cuts
+
+
+def extract_whisper_segments_and_srt(audio_path: str, speech_text: str, srt_path: str, gemini_api_key: str = "", gemini_model: str = "gemini-3.5-flash-lite", whisper_model=None):
     """
     Quét phụ đề tự động bằng Whisper và căn chỉnh khớp 100% với kịch bản gốc.
     """
@@ -171,7 +260,7 @@ def extract_whisper_segments_and_srt(audio_path: str, speech_text: str, srt_path
         except Exception as e:
             print(f"⚠️ Lỗi Whisper: {e}")
 
-    # Fallback ước lượng thời gian
+    # Fallback ước lượng thời gian bằng ffprobe
     cmd_dur = ['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', audio_path]
     total_dur = float(subprocess.check_output(cmd_dur).decode().strip())
     

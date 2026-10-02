@@ -1,7 +1,5 @@
 import os
 import re
-import torch
-from PIL import Image, ImageEnhance
 
 _GLOBAL_SDXL_PIPELINE = None
 
@@ -9,6 +7,7 @@ _GLOBAL_SDXL_PIPELINE = None
 def get_sdxl_pipeline(device: str = None):
     global _GLOBAL_SDXL_PIPELINE
     if _GLOBAL_SDXL_PIPELINE is None:
+        import torch
         from diffusers import AutoPipelineForText2Image
         if device is None:
             device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -51,35 +50,32 @@ def get_sdxl_pipeline(device: str = None):
     return _GLOBAL_SDXL_PIPELINE
 
 
-def sanitize_prompt_for_realism(prompt: str) -> str:
+def sanitize_prompt_for_realism(prompt: str, pipe=None) -> str:
     """
     Chuẩn hóa prompt để loại bỏ các từ kích hoạt lỗi nhân bản vật thể hoặc dị tật ngón tay.
-    Đồng thời khống chế chặt chẽ độ dài < 45 từ để không bao giờ vượt ngưỡng 77 CLIP tokens.
+    Đồng thời khống chế chặt chẽ độ dài < 50 từ để không bao giờ vượt ngưỡng 77 CLIP tokens.
     """
-    p = prompt.strip()
+    safe_prompt = prompt.strip()
 
-    # Xóa số lượng nhiều dẫn đến lỗi vẽ dính chùm 3 xe, nhiều người
-    p = re.sub(r'\b(three|two|four|multiple|several|many|a group of|crowd of)\s+', 'a single ', p, flags=re.IGNORECASE)
+    # Bước 1: Cắt trực tiếp theo tokenizer của model nếu có
+    if pipe is not None:
+        for tok_attr in ["tokenizer", "tokenizer_2"]:
+            tok = getattr(pipe, tok_attr, None)
+            if tok is not None:
+                try:
+                    token_ids = tok.encode(safe_prompt, truncation=False)
+                    if len(token_ids) > 75:
+                        token_ids = token_ids[:75]
+                        safe_prompt = tok.decode(token_ids, skip_special_tokens=True)
+                except Exception:
+                    pass
 
-    # Thay thế các danh từ số nhiều thành số ít đơn lẻ
-    p = re.sub(r'\bcars\b', 'car', p, flags=re.IGNORECASE)
-    p = re.sub(r'\bautomobiles\b', 'automobile', p, flags=re.IGNORECASE)
-    p = re.sub(r'\bvehicles\b', 'vehicle', p, flags=re.IGNORECASE)
-    p = re.sub(r'\bpeople\b', 'person', p, flags=re.IGNORECASE)
-    p = re.sub(r'\bhands\b', 'silhouette', p, flags=re.IGNORECASE)
-    p = re.sub(r'\bfingers\b', 'detail', p, flags=re.IGNORECASE)
+    # Bước 2: Chốt chặn từ ngữ: Giới hạn tối đa 48 từ tiếng Anh (< 75 tokens)
+    words = safe_prompt.split()
+    if len(words) > 48:
+        safe_prompt = " ".join(words[:48])
 
-    # Khống chế tối đa 42 từ để đảm bảo CLIP Tokenizer không bao giờ bị tràn 77 tokens
-    words = p.split()
-    if len(words) > 42:
-        p = " ".join(words[:42])
-
-    # Nếu prompt chưa có bất kỳ từ khóa phong cách nào, mới thêm mặc định 35mm
-    style_indicators = ["sketch", "pencil", "drawing", "ink", "watercolor", "comic", "noir", "photograph", "cinematic"]
-    if not any(ind in p.lower() for ind in style_indicators):
-        p += ", cinematic 35mm photograph, sharp focus, 8k"
-
-    return p
+    return safe_prompt
 
 
 def generate_sdxl_metaphor_image(
@@ -89,31 +85,40 @@ def generate_sdxl_metaphor_image(
     scene_idx: int = 0,
     seed: int = None,
     pipe=None,
-    steps: int = 2
+    steps: int = 3
 ) -> str:
     """
-    Sinh ảnh ẩn dụ điện ảnh bằng SDXL / SD-Turbo:
-    - 16:9: 768x432 (chuẩn tỷ lệ 16:9, tránh lỗi nhân bản vật thể / 3 xe dính nhau khi render >1000px)
-    - 9:16: 432x768 (chuẩn tỷ lệ 9:16)
-    - Resize về 1920x1080 hoặc 1080x1920 bằng LANCZOS + bộ lọc làm nét chi tiết (Sharpness Enhancement).
+    Sinh ảnh điện ảnh bằng SDXL / SD-Turbo V20:
+    - 16:9: 1152x640 (chuẩn tỷ lệ 16:9 chất lượng cao)
+    - 9:16: 640x1152 (chuẩn tỷ lệ 9:16)
+    - Resize về 1920x1080 hoặc 1080x1920 bằng LANCZOS + bộ lọc làm nét chi tiết.
+    - Áp dụng Negative Prompt triệt tiêu dị dạng cho Gothic Noir & Trinh Thám.
     """
     is_vertical = "9:16" in aspect_ratio
-    # Kích thước tạo ảnh gốc tối ưu cho SDXL-Turbo / SD-Turbo (không bị nhân bản ngang 3 xe)
-    gen_w, gen_h = (432, 768) if is_vertical else (768, 432)
+    gen_w, gen_h = (640, 1152) if is_vertical else (1152, 640)
     final_w, final_h = (1080, 1920) if is_vertical else (1920, 1080)
 
-    safe_prompt = sanitize_prompt_for_realism(clean_prompt)
-
+    from PIL import Image, ImageEnhance, ImageDraw
     if pipe is None:
         try:
             pipe = get_sdxl_pipeline()
         except Exception:
             pipe = None
 
+    safe_prompt = sanitize_prompt_for_realism(clean_prompt, pipe=pipe)
+
+    negative_prompt = (
+        "cartoon, anime, 3d render, illustration, deformed, distorted, bad anatomy, "
+        "bad hands, extra limbs, blurry, out of focus, low quality, oversaturated, "
+        "cheerful, sunny bright, watermark, text, signature"
+    )
+
     if pipe is not None:
         try:
-            generator = torch.Generator(device=pipe.device).manual_seed(seed if seed is not None else (42 + scene_idx))
-            # 2 bước suy luận (steps=2) giúp giải phóng chi tiết sắc nét và không tràn token
+            import torch
+            curr_seed = seed if seed is not None else (10000 + scene_idx * 17)
+            generator = torch.Generator(device=pipe.device).manual_seed(curr_seed)
+
             img = pipe(
                 prompt=safe_prompt,
                 num_inference_steps=max(steps, 2),
@@ -123,22 +128,23 @@ def generate_sdxl_metaphor_image(
                 generator=generator
             ).images[0]
 
-            # Phóng to độ phân giải điện ảnh Full HD
             img = img.resize((final_w, final_h), Image.Resampling.LANCZOS)
 
-            # Tăng nhẹ độ sắc nét chi tiết (tránh mờ nhòe)
             try:
                 enhancer = ImageEnhance.Sharpness(img)
-                img = enhancer.enhance(1.2)
+                img = enhancer.enhance(1.15)
             except Exception:
                 pass
 
-            img.save(out_img, quality=95)
+            img.save(out_img, "JPEG", quality=95)
             return out_img
         except Exception as e:
-            print(f"⚠️ Lỗi sinh ảnh SDXL: {e}")
+            print(f"⚠️ Lỗi SDXL: {e}")
 
-    # Fallback tạo ảnh tối Gothic Noir nếu không có GPU
-    bg = Image.new("RGB", (final_w, final_h), color=(18, 16, 22))
-    bg.save(out_img, quality=90)
+    # Fallback tạo ảnh tối Gothic Noir nếu không có GPU hoặc lỗi
+    colors = [(22, 24, 30), (28, 22, 20), (18, 26, 28), (26, 20, 26)]
+    fallback_img = Image.new('RGB', (final_w, final_h), color=colors[scene_idx % len(colors)])
+    draw = ImageDraw.Draw(fallback_img)
+    draw.rectangle([40, 60, final_w - 40, final_h - 60], outline=(180, 150, 100), width=4)
+    fallback_img.save(out_img, "JPEG", quality=95)
     return out_img
