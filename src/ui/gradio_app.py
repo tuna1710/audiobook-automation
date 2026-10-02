@@ -1,3 +1,5 @@
+import re
+import json
 import os
 import glob
 from datetime import datetime, timezone, timedelta
@@ -98,6 +100,117 @@ def get_available_rendered_videos(outputs_dir: str = "outputs") -> List[str]:
     unique_vids.sort(key=lambda p: os.path.getmtime(p), reverse=True)
     res = [os.path.relpath(v, outputs_dir) for v in unique_vids]
     return res if res else ["(Chưa có video nào trong thư mục outputs)"]
+
+
+def load_video_metadata_for_ui(selected_vid: str, outputs_dir: str = "outputs", sample_tomorrow_vn: str = "") -> dict:
+    """Đọc metadata (tiêu đề, mô tả, lên lịch, tags, thumbnail, channel) theo video được chọn."""
+    default_channel = "🕯️ Trinh Thám & Kinh Dị Gothic (Kênh Nỗi Sợ AudioBook)"
+    default_res = {
+        "video_path": None,
+        "thumbnail_path": None,
+        "title": "",
+        "description": "",
+        "tags": DEFAULT_TAGS,
+        "channel_profile": default_channel,
+        "is_schedule": True,
+        "schedule_time": sample_tomorrow_vn
+    }
+    if not selected_vid or str(selected_vid).startswith("("):
+        return default_res
+
+    vid_path = selected_vid if os.path.isabs(selected_vid) else os.path.join(outputs_dir, selected_vid)
+    if not os.path.exists(vid_path):
+        return default_res
+
+    default_res["video_path"] = vid_path
+    base_name = os.path.splitext(os.path.basename(vid_path))[0]
+    session_id = base_name
+    for prefix in ["video_", "final_video_", "rendered_"]:
+        if base_name.startswith(prefix):
+            session_id = base_name[len(prefix):]
+            break
+
+    # 1. Tìm file metadata JSON
+    meta_candidates = [
+        os.path.join(outputs_dir, f"meta_{session_id}.json"),
+        os.path.join(outputs_dir, f"meta_{base_name}.json"),
+        os.path.join(outputs_dir, f"{base_name}.json"),
+        os.path.join(outputs_dir, f"{session_id}.json")
+    ]
+    meta_data = {}
+    for cand in meta_candidates:
+        if os.path.exists(cand):
+            try:
+                with open(cand, "r", encoding="utf-8") as f:
+                    meta_data = json.load(f)
+                break
+            except Exception:
+                pass
+
+    if not meta_data and os.path.exists(outputs_dir):
+        for m_file in glob.glob(os.path.join(outputs_dir, "meta_*.json")):
+            try:
+                with open(m_file, "r", encoding="utf-8") as f:
+                    d = json.load(f)
+                    if d.get("session_id") == session_id or os.path.basename(d.get("video_path", "")) == os.path.basename(vid_path):
+                        meta_data = d
+                        break
+            except Exception:
+                continue
+
+    # 2. Tìm thumbnail
+    thumb_path = None
+    if meta_data.get("thumbnail_path") and os.path.exists(meta_data.get("thumbnail_path")):
+        thumb_path = meta_data.get("thumbnail_path")
+    else:
+        thumb_candidates = [
+            os.path.join(outputs_dir, f"thumbnail_{session_id}.jpg"),
+            os.path.join(outputs_dir, f"thumbnail_{session_id}.png"),
+            os.path.join(outputs_dir, f"thumbnail_{base_name}.jpg"),
+            os.path.join(outputs_dir, f"thumbnail_{base_name}.png"),
+            os.path.join(outputs_dir, f"{base_name}.jpg"),
+            os.path.join(outputs_dir, f"{base_name}.png"),
+            os.path.join(outputs_dir, "thumbnail_latest.jpg")
+        ]
+        for t_cand in thumb_candidates:
+            if os.path.exists(t_cand):
+                thumb_path = t_cand
+                break
+    default_res["thumbnail_path"] = thumb_path
+
+    # 3. Trích xuất Title
+    if meta_data.get("title"):
+        default_res["title"] = str(meta_data.get("title")).strip()
+    else:
+        clean_title = re.sub(r'^(video_|final_video_)', '', base_name).replace('_', ' ').strip().title()
+        default_res["title"] = clean_title
+
+    # 4. Trích xuất Channel Profile & Tags
+    channel_name = meta_data.get("channel_profile", "")
+    if channel_name and channel_name in CHANNEL_PROFILES_PRESET:
+        default_res["channel_profile"] = channel_name
+
+    prof = CHANNEL_PROFILES_PRESET.get(default_res["channel_profile"], {})
+    if meta_data.get("tags"):
+        default_res["tags"] = meta_data.get("tags")
+    else:
+        default_res["tags"] = prof.get("tags", DEFAULT_TAGS)
+
+    # 5. Trích xuất Description
+    if meta_data.get("description"):
+        default_res["description"] = meta_data.get("description")
+    else:
+        desc_tmpl = prof.get("desc_template", "")
+        default_res["description"] = default_res["title"] + chr(10) + chr(10) + desc_tmpl + chr(10) + chr(10) + "#Audiobook #VideoEssay"
+
+    # 6. Trích xuất Lên lịch
+    if meta_data.get("schedule_time"):
+        default_res["schedule_time"] = meta_data.get("schedule_time")
+        default_res["is_schedule"] = meta_data.get("is_schedule", True)
+    elif "is_schedule" in meta_data:
+        default_res["is_schedule"] = meta_data.get("is_schedule")
+
+    return default_res
 
 
 def create_gradio_app(outputs_dir: str = "outputs", temp_dir: str = "temp_work", default_gemini_key: str = "", default_pexels_key: str = ""):
@@ -425,11 +538,19 @@ Một bí mật kinh hoàng sắp sửa được phơi bày trong bóng tối m�
                             )
                             btn_refresh_vids = gr.Button("🔄 Làm mới danh sách", scale=2, variant="secondary")
 
-                        history_vid_preview = gr.Video(
-                            label="👁️ Xem trước video đã chọn từ thư mục outputs/: ",
-                            interactive=False,
-                            height=260
-                        )
+                        with gr.Row():
+                            history_vid_preview = gr.Video(
+                                label="👁️ Video đã chọn từ thư mục outputs/: ",
+                                interactive=False,
+                                height=240,
+                                scale=1
+                            )
+                            yt_thumbnail_image = gr.Image(
+                                label="🖼️ Thumbnail tự động liên kết (hoặc tải ảnh mới):",
+                                type="filepath",
+                                height=240,
+                                scale=1
+                            )
                         custom_vid_upload = gr.File(label="Tải video từ máy:", file_types=[".mp4", ".mov", ".mkv"])
 
                         yt_title_box = gr.Textbox(label="Tiêu đề YouTube (Tối đa 100 ký tự):", lines=1)
@@ -661,42 +782,122 @@ Một bí mật kinh hoàng sắp sửa được phơi bày trong bóng tối m�
             outputs=[batch_status_box]
         )
 
-        # Tab 3: Video selection & refresh handlers
+        # Tab 3: Video selection, metadata linking & refresh handlers
+        def on_history_video_change(selected_vid):
+            meta = load_video_metadata_for_ui(selected_vid, outputs_dir, sample_tomorrow_vn)
+            return (
+                meta["channel_profile"],
+                meta["video_path"],
+                meta["thumbnail_path"],
+                meta["title"],
+                meta["description"],
+                meta["tags"],
+                meta["is_schedule"],
+                meta["schedule_time"]
+            )
+
         def refresh_history_videos():
             vids = get_available_rendered_videos(outputs_dir)
             val = vids[0] if vids and not vids[0].startswith("(") else None
-            preview_path = os.path.join(outputs_dir, val) if val and os.path.exists(os.path.join(outputs_dir, val)) else None
-            return gr.update(choices=vids, value=val), preview_path
+            meta = load_video_metadata_for_ui(val, outputs_dir, sample_tomorrow_vn)
+            return (
+                gr.update(choices=vids, value=val),
+                meta["channel_profile"],
+                meta["video_path"],
+                meta["thumbnail_path"],
+                meta["title"],
+                meta["description"],
+                meta["tags"],
+                meta["is_schedule"],
+                meta["schedule_time"]
+            )
 
-        def on_history_video_change(selected_vid):
-            if not selected_vid or str(selected_vid).startswith("("):
-                return None
-            vid_path = os.path.join(outputs_dir, selected_vid)
-            return vid_path if os.path.exists(vid_path) else None
-
-        def on_video_source_change(source):
+        def on_video_source_change(source, gen_video):
             if "outputs" in str(source).lower():
                 vids = get_available_rendered_videos(outputs_dir)
                 val = vids[0] if vids and not vids[0].startswith("(") else None
-                preview_path = os.path.join(outputs_dir, val) if val and os.path.exists(os.path.join(outputs_dir, val)) else None
-                return gr.update(choices=vids, value=val), preview_path
-            return gr.update(), None
+                meta = load_video_metadata_for_ui(val, outputs_dir, sample_tomorrow_vn)
+                return (
+                    gr.update(choices=vids, value=val),
+                    meta["channel_profile"],
+                    meta["video_path"],
+                    meta["thumbnail_path"],
+                    meta["title"],
+                    meta["description"],
+                    meta["tags"],
+                    meta["is_schedule"],
+                    meta["schedule_time"]
+                )
+            elif "máy tính" in str(source).lower():
+                return gr.update(), gr.update(), None, None, gr.update(), gr.update(), gr.update(), gr.update(), gr.update()
+            else:
+                meta = load_video_metadata_for_ui(gen_video, outputs_dir, sample_tomorrow_vn)
+                return (
+                    gr.update(),
+                    meta["channel_profile"] if meta["channel_profile"] else gr.update(),
+                    gen_video,
+                    meta["thumbnail_path"],
+                    meta["title"] if meta["title"] else gr.update(),
+                    meta["description"] if meta["description"] else gr.update(),
+                    meta["tags"] if meta["tags"] else gr.update(),
+                    meta["is_schedule"],
+                    meta["schedule_time"] if meta["schedule_time"] else gr.update()
+                )
+
+        def on_yt_channel_profile_change(prof_name):
+            prof = get_channel_profile(prof_name)
+            return prof.get("tags", DEFAULT_TAGS)
 
         btn_refresh_vids.click(
             fn=refresh_history_videos,
-            outputs=[history_vids_dropdown, history_vid_preview]
+            outputs=[
+                history_vids_dropdown,
+                yt_channel_dropdown,
+                history_vid_preview,
+                yt_thumbnail_image,
+                yt_title_box,
+                yt_desc_box,
+                yt_tags_box,
+                schedule_cb,
+                custom_sched_time_box
+            ]
         )
 
         history_vids_dropdown.change(
             fn=on_history_video_change,
             inputs=[history_vids_dropdown],
-            outputs=[history_vid_preview]
+            outputs=[
+                yt_channel_dropdown,
+                history_vid_preview,
+                yt_thumbnail_image,
+                yt_title_box,
+                yt_desc_box,
+                yt_tags_box,
+                schedule_cb,
+                custom_sched_time_box
+            ]
         )
 
         yt_video_source.change(
             fn=on_video_source_change,
-            inputs=[yt_video_source],
-            outputs=[history_vids_dropdown, history_vid_preview]
+            inputs=[yt_video_source, video_output],
+            outputs=[
+                history_vids_dropdown,
+                yt_channel_dropdown,
+                history_vid_preview,
+                yt_thumbnail_image,
+                yt_title_box,
+                yt_desc_box,
+                yt_tags_box,
+                schedule_cb,
+                custom_sched_time_box
+            ]
+        )
+
+        yt_channel_dropdown.change(
+            fn=on_yt_channel_profile_change,
+            inputs=[yt_channel_dropdown],
+            outputs=[yt_tags_box]
         )
 
         # Tab 3: Upload YouTube
@@ -705,7 +906,8 @@ Một bí mật kinh hoàng sắp sửa được phơi bày trong bóng tối m�
             inputs=[
                 yt_video_source, video_output, history_vids_dropdown, custom_vid_upload,
                 yt_title_box, yt_desc_box, yt_tags_box, schedule_cb, custom_sched_time_box,
-                yt_privacy_status, editor_email_t1, shared_drive_folder_t1
+                yt_privacy_status, editor_email_t1, shared_drive_folder_t1,
+                yt_thumbnail_image, yt_channel_dropdown
             ],
             outputs=[yt_result_box]
         )

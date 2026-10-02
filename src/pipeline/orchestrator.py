@@ -407,15 +407,25 @@ def process_full_pipeline(
     # Lưu metadata json
     meta_path = os.path.join(outputs_dir, f"meta_{session_id}.json")
     try:
+        final_tags = custom_yt_tags if custom_yt_tags else prof.get("tags", DEFAULT_TAGS)
+        final_thumb_file = thumb_path if (thumb_path and os.path.exists(thumb_path)) else os.path.join(outputs_dir, f"thumbnail_{session_id}.jpg")
+        if not os.path.exists(final_thumb_file):
+            alt_thumb = os.path.join(outputs_dir, "thumbnail_latest.jpg")
+            if os.path.exists(alt_thumb):
+                final_thumb_file = alt_thumb
+
         with open(meta_path, "w", encoding="utf-8") as f:
             json.dump({
                 "session_id": session_id,
                 "title": final_title,
                 "channel_profile": channel_profile,
                 "description": yt_description,
+                "tags": final_tags,
+                "is_schedule": bool(sched_time_str),
+                "schedule_time": sched_time_str if sched_time_str else "",
+                "thumbnail_path": final_thumb_file if (final_thumb_file and os.path.exists(final_thumb_file)) else "",
                 "video_path": video_path,
                 "audio_path": delivered_audio_path,
-                "schedule_time": sched_time_str if sched_time_str else "",
                 "prompts_txt": os.path.join(outputs_dir, f"prompts_{session_id}.txt"),
                 "prompts_json": os.path.join(outputs_dir, f"prompts_{session_id}.json"),
                 "created_at": datetime.now(timezone(timedelta(hours=7))).isoformat()

@@ -71,17 +71,29 @@ def upload_to_youtube(*args, **kwargs) -> str:
     HÀM ĐĂNG TẢI YOUTUBE V20 LINH HOẠT:
     Hỗ trợ gọi từ Tab 3 (12 hoặc 14 tham số giao diện), hoặc gọi trực tiếp từ orchestrator.
     """
+    custom_thumbnail = kwargs.get("custom_thumbnail", None)
     channel_profile = kwargs.get("channel_profile", "")
 
     # Xử lý tham số linh hoạt
-    if len(args) == 12:
+    if len(args) >= 14:
+        video_source_mode = args[0]
+        generated_video = args[1]
+        history_video_choice = args[2]
+        custom_video_file = args[3]
+        title = args[4]
+        description = args[5]
+        tags = args[6]
+        is_schedule = args[7]
+        custom_schedule_time = args[8]
+        privacy_status = args[9]
+        editor_email = args[10]
+        shared_drive_folder = args[11]
+        custom_thumbnail = args[12] if args[12] else custom_thumbnail
+        channel_profile = args[13] if args[13] else channel_profile
+    elif len(args) == 12:
         (video_source_mode, generated_video, history_video_choice, custom_video_file,
          title, description, tags, is_schedule, custom_schedule_time,
          privacy_status, editor_email, shared_drive_folder) = args
-    elif len(args) == 14:
-        (video_source_mode, generated_video, history_video_choice, custom_video_file,
-         title, description, tags, is_schedule, _preset, custom_schedule_time,
-         _ld_file, privacy_status, editor_email, shared_drive_folder) = args
     elif len(args) >= 8:
         video_source_mode = args[0]
         generated_video = args[1]
@@ -207,22 +219,45 @@ def upload_to_youtube(*args, **kwargs) -> str:
         # Gán thumbnail
         thumb_status_msg = ""
         try:
-            cand_thumb = os.path.join(outputs_dir, "thumbnail_latest.jpg")
-            if not os.path.exists(cand_thumb) and target_video:
-                base_name = os.path.splitext(os.path.basename(target_video))[0].replace("video_", "thumbnail_").replace("final_video_", "thumbnail_")
-                cand_specific = os.path.join(outputs_dir, f"{base_name}.jpg")
-                if os.path.exists(cand_specific):
-                    cand_thumb = cand_specific
+            cand_thumb = None
+            resolved_custom_thumb = resolve_file_path(custom_thumbnail) if custom_thumbnail else None
+            if resolved_custom_thumb and os.path.exists(resolved_custom_thumb):
+                cand_thumb = resolved_custom_thumb
+            elif target_video:
+                base_name = os.path.splitext(os.path.basename(target_video))[0]
+                session_cand = base_name
+                for pfx in ["video_", "final_video_", "rendered_"]:
+                    if base_name.startswith(pfx):
+                        session_cand = base_name[len(pfx):]
+                        break
 
-            if os.path.exists(cand_thumb):
+                candidates = [
+                    os.path.join(outputs_dir, f"thumbnail_{session_cand}.jpg"),
+                    os.path.join(outputs_dir, f"thumbnail_{session_cand}.png"),
+                    os.path.join(outputs_dir, f"thumbnail_{base_name}.jpg"),
+                    os.path.join(outputs_dir, f"thumbnail_{base_name}.png"),
+                    os.path.join(outputs_dir, f"{base_name}.jpg"),
+                    os.path.join(outputs_dir, f"{base_name}.png"),
+                ]
+                for c in candidates:
+                    if os.path.exists(c):
+                        cand_thumb = c
+                        break
+
+            if not cand_thumb:
+                cand_latest = os.path.join(outputs_dir, "thumbnail_latest.jpg")
+                if os.path.exists(cand_latest):
+                    cand_thumb = cand_latest
+
+            if cand_thumb and os.path.exists(cand_thumb):
+                mime = "image/png" if str(cand_thumb).lower().endswith(".png") else "image/jpeg"
                 service.thumbnails().set(
                     videoId=vid,
-                    media_body=MediaFileUpload(cand_thumb, mimetype="image/jpeg")
+                    media_body=MediaFileUpload(cand_thumb, mimetype=mime)
                 ).execute()
-                thumb_status_msg = f"\n🖼️ ĐÃ TỰ ĐỘNG GÁN THUMBNAIL CTR BOOSTER: {os.path.basename(cand_thumb)}"
+                thumb_status_msg = chr(10) + f"🖼️ ĐÃ TỰ ĐỘNG GÁN THUMBNAIL CTR BOOSTER: {os.path.basename(cand_thumb)}"
         except Exception as e_th:
-            thumb_status_msg = f"\nℹ️ Lưu ý Thumbnail: {e_th}"
-
+            thumb_status_msg = chr(10) + f"Lưu ý Thumbnail: {e_th}"
         schedule_info_msg = ""
         if is_schedule and scheduled_iso_str:
             schedule_info_msg = f"\n⏰ ĐÃ HẸN GIỜ CÔNG KHAI: {sched_desc}"
