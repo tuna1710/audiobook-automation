@@ -114,6 +114,23 @@ CHANNEL_PROFILES_PRESET: Dict[str, Dict[str, Any]] = {
             "ancient wise talking tree with smiling wooden face"
         ]
     },
+    "📈 Kinh Doanh, Tài Chính & Đầu Tư Thịnh Vượng": {
+        "channel_name": "Tài Chính & Thịnh Vượng",
+        "genre_role": "Đạo diễn Hình ảnh Điện ảnh Hiện đại & Doanh nhân (Cinematic Modern Finance & Business Director) chuyên về Tài Chính, Chứng Khoán, Kinh Doanh & Tư Duy Thịnh Vượng",
+        "visual_concept": "Modern Wall Street executive office, sleek glass skyscrapers, glowing financial stock charts and trading screens, sophisticated luxury business setting, cinematic lighting, 8k photorealistic",
+        "style_suffix": ", modern financial business aesthetic, sleek corporate luxury, cinematic depth of field, 35mm photography, 8k photorealistic",
+        "voice": "Hải Đăng",
+        "tags": "tài chính cá nhân, đầu tư chứng khoán, kinh doanh làm giàu, tự do tài chính, tư duy triệu phú, sách nói kinh doanh, quản lý tài chính, bất động sản, thịnh vượng, bài học đầu tư",
+        "desc_template": "Kênh Tài Chính, Kinh Doanh & Đầu Tư Thịnh Vượng - Chia sẻ kiến thức tài chính cá nhân, tư duy làm giàu và bài học kinh doanh thực chiến.\nĐăng ký kênh để không bỏ lỡ những bài học tư duy tài chính giá trị mỗi ngày!\n\n#TaiChinh #DauTu #KinhDoanh #TuDoTaiChinh #TaiChinhCaNhan #SachNoiKinhDoanh #ThiTruongChungKhoan",
+        "token_filename": "token.json",
+        "fallback_keywords": [
+            "modern glass skyscraper boardroom with city skyline at sunset",
+            "financial trader desk with multiple glowing stock market candlestick monitors",
+            "businessman in sharp suit analyzing financial charts on tablet",
+            "golden coins and bullion stacks beside luxury fountain pen on mahogany desk",
+            "panoramic aerial view of bustling financial district skyscrapers illuminated at dusk"
+        ]
+    },
     "⚙️ Kênh Tùy Chỉnh (Custom Profile Của Riêng Bạn)": {
         "channel_name": "Kênh Tùy Chỉnh",
         "genre_role": "Đạo diễn Hình ảnh Điện ảnh (Cinematic Visual Storyboard Director)",
