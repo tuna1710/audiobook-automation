@@ -7,8 +7,13 @@ _GLOBAL_SDXL_PIPELINE = None
 def get_sdxl_pipeline(device: str = None):
     global _GLOBAL_SDXL_PIPELINE
     if _GLOBAL_SDXL_PIPELINE is None:
-        import torch
-        from diffusers import AutoPipelineForText2Image
+        try:
+            import torch
+            from diffusers import AutoPipelineForText2Image
+        except Exception as e_imp:
+            print(f"❌ [LỖI IMPORT DIFFUSERS] Không thể nạp AutoPipelineForText2Image: {e_imp}")
+            print("💡 GỢI Ý KHẮC PHỤC: Hãy chạy: pip install -U torchao sentencepiece invisible-watermark và khởi động lại session (Runtime -> Restart session)!")
+            raise e_imp
         if device is None:
             device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -102,7 +107,8 @@ def generate_sdxl_metaphor_image(
     if pipe is None:
         try:
             pipe = get_sdxl_pipeline()
-        except Exception:
+        except Exception as e_pipe:
+            print(f"⚠️ [CẢNH BÁO SDXL] Không thể khởi tạo mô hình SDXL: {e_pipe}")
             pipe = None
 
     safe_prompt = sanitize_prompt_for_realism(clean_prompt, pipe=pipe)
@@ -142,6 +148,7 @@ def generate_sdxl_metaphor_image(
             print(f"⚠️ Lỗi SDXL: {e}")
 
     # Fallback tạo ảnh tối Gothic Noir nếu không có GPU hoặc lỗi
+    print(f"⚠️ [FALLBACK] Đang sử dụng ảnh nền tối Gothic Noir cho phân cảnh #{scene_idx+1} do mô hình SDXL không khả dụng.")
     colors = [(22, 24, 30), (28, 22, 20), (18, 26, 28), (26, 20, 26)]
     fallback_img = Image.new('RGB', (final_w, final_h), color=colors[scene_idx % len(colors)])
     draw = ImageDraw.Draw(fallback_img)

@@ -1,6 +1,9 @@
 # Core Deep Learning & Audio/Video
 torch>=2.0.0
 torchaudio>=2.0.0
+torchao>=0.17.0
+sentencepiece>=0.1.99
+invisible-watermark>=0.2.0
 transformers>=4.36.0
 accelerate>=0.25.0
 diffusers>=0.25.0
