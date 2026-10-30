@@ -14,14 +14,20 @@ class TTSEngine:
         self._initialize()
 
     def _initialize(self):
+        os.environ["USE_TF"] = "0"
+        os.environ["TRANSFORMERS_NO_TF"] = "1"
         os.environ["VIENEU_FUSED_FRAME"] = "0"
         try:
             from vieneu import Vieneu
             print(f"⏳ Đang khởi tạo VieNeu-TTS ({self.model_id})...")
-            self.engine = Vieneu()
+            try:
+                self.engine = Vieneu()
+            except Exception as torch_err:
+                print(f"⚠️ PyTorch engine gặp lỗi ({torch_err}), tự động chuyển sang backend ONNX...")
+                self.engine = Vieneu(backend="onnx")
             if hasattr(self.engine, "_batch_engine") and self.engine._batch_engine is not None:
                 self.engine._batch_engine.use_fused = False
-            print("✅ VieNeu-TTS đã sẵn sàng hoạt động (Eager Mode On)!")
+            print("✅ VieNeu-TTS đã sẵn sàng hoạt động!")
         except Exception as e:
             print(f"⚠️ Cảnh báo khởi tạo VieNeu-TTS: {e}")
             self.engine = None
