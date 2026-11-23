@@ -6,7 +6,24 @@ import json
 import shutil
 import subprocess
 from datetime import datetime, timezone, timedelta
+from concurrent.futures import ThreadPoolExecutor
 from typing import List, Tuple, Optional, Any
+
+
+def _is_parallel_post_tts_enabled() -> bool:
+    try:
+        import yaml
+        cfg_path = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+            "configs", "app_config.yaml"
+        )
+        if os.path.exists(cfg_path):
+            with open(cfg_path, "r", encoding="utf-8") as f:
+                cfg = yaml.safe_load(f) or {}
+            return bool(cfg.get("performance", {}).get("parallel_post_tts", True))
+    except Exception:
+        pass
+    return True
 
 from .channel_profiles import get_channel_profile, get_channel_token_file, DEFAULT_TAGS
 from ..tts import extract_script_components, clean_voice_name, get_tts_engine
@@ -250,19 +267,34 @@ def process_full_pipeline(
     tts_engine = get_tts_engine()
     tts_engine.synthesize(speech_text, actual_voice, voice_audio_path)
 
-    # 2. Xử lý nhạc nền BGM
-    if progress is not None:
-        progress(0.35, desc=f"Đang hòa âm nhạc nền ({int(bgm_volume*100)}%)...")
-    final_audio_path = handle_background_music(bgm_file, bgm_gdrive_url, voice_audio_path, session_id, bgm_volume, temp_dir=temp_dir)
-
-    # 3. QUÉT SUBTITLE TRƯỚC (WHISPER-FIRST)
-    if progress is not None:
-        progress(0.50, desc="Đang quét phụ đề Whisper để lấy mốc cắt cảnh theo từng câu...")
+    # 2 & 3. Xử lý nhạc nền BGM + Quét Subtitle Whisper (Chạy song song nếu bật parallel_post_tts)
     srt_path = os.path.join(outputs_dir, f"subtitles_{session_id}.srt")
-    segments, srt_path = extract_whisper_segments_and_srt(
-        voice_audio_path, speech_text, srt_path,
-        gemini_api_key=actual_gemini_key, gemini_model=gemini_model_input
-    )
+    if _is_parallel_post_tts_enabled():
+        if progress is not None:
+            progress(0.40, desc=f"⚡ Đang chạy song song: Hòa âm BGM ({int(bgm_volume*100)}%) & Quét phụ đề Whisper...")
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            fut_bgm = pool.submit(
+                handle_background_music,
+                bgm_file, bgm_gdrive_url, voice_audio_path, session_id, bgm_volume, temp_dir
+            )
+            fut_sub = pool.submit(
+                extract_whisper_segments_and_srt,
+                voice_audio_path, speech_text, srt_path,
+                actual_gemini_key, gemini_model_input
+            )
+            final_audio_path = fut_bgm.result()
+            segments, srt_path = fut_sub.result()
+    else:
+        if progress is not None:
+            progress(0.35, desc=f"Đang hòa âm nhạc nền ({int(bgm_volume*100)}%)...")
+        final_audio_path = handle_background_music(bgm_file, bgm_gdrive_url, voice_audio_path, session_id, bgm_volume, temp_dir=temp_dir)
+
+        if progress is not None:
+            progress(0.50, desc="Đang quét phụ đề Whisper để lấy mốc cắt cảnh theo từng câu...")
+        segments, srt_path = extract_whisper_segments_and_srt(
+            voice_audio_path, speech_text, srt_path,
+            gemini_api_key=actual_gemini_key, gemini_model=gemini_model_input
+        )
 
     cmd_dur = ['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', final_audio_path]
     total_dur = float(subprocess.check_output(cmd_dur).decode().strip())

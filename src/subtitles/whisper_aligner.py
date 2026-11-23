@@ -5,17 +5,49 @@ import subprocess
 from .formatter import format_timestamp_srt, format_srt_max_two_lines
 
 _GLOBAL_WHISPER_MODEL = None
+_GLOBAL_WHISPER_BACKEND = None
+
+
+def _get_whisper_backend_pref() -> str:
+    try:
+        import yaml
+        cfg_path = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+            "configs", "app_config.yaml"
+        )
+        if os.path.exists(cfg_path):
+            with open(cfg_path, "r", encoding="utf-8") as f:
+                cfg = yaml.safe_load(f) or {}
+            return str(cfg.get("performance", {}).get("whisper_backend", "auto"))
+    except Exception:
+        pass
+    return "auto"
 
 
 def get_whisper_model(model_name: str = "base", device: str = None):
-    global _GLOBAL_WHISPER_MODEL
+    global _GLOBAL_WHISPER_MODEL, _GLOBAL_WHISPER_BACKEND
     if _GLOBAL_WHISPER_MODEL is None:
-        import whisper
         import torch
         if device is None:
             device = "cuda" if torch.cuda.is_available() else "cpu"
+
+        pref = _get_whisper_backend_pref()
+        if pref == "auto":
+            try:
+                from faster_whisper import WhisperModel
+                compute_type = "float16" if device == "cuda" else "int8"
+                print(f"⏳ Đang nạp mô hình faster-whisper ({model_name}, {compute_type}) trên {device.upper()}...")
+                _GLOBAL_WHISPER_MODEL = WhisperModel(model_name, device=device, compute_type=compute_type)
+                _GLOBAL_WHISPER_BACKEND = "faster-whisper"
+                print("✅ faster-whisper Subtitle đã sẵn sàng (tăng tốc 4x-6x)!")
+                return _GLOBAL_WHISPER_MODEL
+            except Exception:
+                pass
+
+        import whisper
         print(f"⏳ Đang nạp mô hình Whisper ({model_name}) trên {device.upper()}...")
         _GLOBAL_WHISPER_MODEL = whisper.load_model(model_name, device=device)
+        _GLOBAL_WHISPER_BACKEND = "openai-whisper"
         print("✅ Whisper Subtitle đã sẵn sàng!")
     return _GLOBAL_WHISPER_MODEL
 
@@ -233,14 +265,28 @@ def extract_whisper_segments_and_srt(audio_path: str, speech_text: str, srt_path
     if whisper_model is not None:
         try:
             print("⏳ Đang quét giọng đọc qua Whisper để lấy mốc thời gian...")
-            result = whisper_model.transcribe(audio_path, language="vi")
-            segs = result.get("segments", [])
-            for idx, seg in enumerate(segs, 1):
-                st = seg["start"]
-                et = seg["end"]
-                clean_txt = seg["text"].strip().replace("[thở dài]", "").replace("[hắng giọng]", "").replace("[cười]", "").strip()
-                if clean_txt:
-                    segments_data.append({"start": st, "end": et, "text": clean_txt})
+            if _GLOBAL_WHISPER_BACKEND == "faster-whisper" and hasattr(whisper_model, "transcribe"):
+                fw_segs, _ = whisper_model.transcribe(audio_path, language="vi", vad_filter=True)
+                for seg in fw_segs:
+                    clean_txt = seg.text.strip().replace("[thở dài]", "").replace("[hắng giọng]", "").replace("[cười]", "").strip()
+                    if clean_txt:
+                        segments_data.append({"start": float(seg.start), "end": float(seg.end), "text": clean_txt})
+            else:
+                from contextlib import nullcontext
+                try:
+                    import torch
+                    ctx = torch.inference_mode()
+                except Exception:
+                    ctx = nullcontext()
+                with ctx:
+                    result = whisper_model.transcribe(audio_path, language="vi")
+                segs = result.get("segments", [])
+                for seg in segs:
+                    st = seg["start"]
+                    et = seg["end"]
+                    clean_txt = seg["text"].strip().replace("[thở dài]", "").replace("[hắng giọng]", "").replace("[cười]", "").strip()
+                    if clean_txt:
+                        segments_data.append({"start": st, "end": et, "text": clean_txt})
 
             if segments_data and speech_text:
                 print(f"⚡ Đang căn chỉnh {len(segments_data)} phân đoạn theo đúng kịch bản gốc...")

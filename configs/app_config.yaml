@@ -37,6 +37,9 @@ video:
     "9:16": [1080, 1920]
   defaults:
     aspect_ratio: "16:9"
+    vertical_layout_mode: "square_in_9_16"  # "square_in_9_16" (ảnh vuông 1080x1080 giữa nền đen 1080x1920) | "full_crop"
+    vertical_bg_color: "black"              # Nền đen thuần #000000 cho phần trên/dưới của khung 9:16
+    enable_zoompan: true                    # false để render siêu tốc (chỉ fade tĩnh, không zoompan)
     visual_mode: "🎨 100% Ảnh Nghệ Thuật AI (SDXL Photorealism)"
     sync_mode: "⚡ Tự động theo từng câu Subtitle (Whisper Sync)"
     title_font_size: 60
@@ -46,6 +49,11 @@ video:
     waveform_style: "Tắt"
     retention_cuts: true
     bgm_volume: 0.10
+
+performance:
+  parallel_post_tts: true       # Chạy song song hòa âm BGM và quét Whisper sau khi có file giọng đọc
+  whisper_backend: "auto"       # "auto" (ưu tiên faster-whisper nếu có, fallback openai-whisper) | "openai-whisper"
+  tts_chunk_cache: true         # Bật cache âm thanh TTS theo nội dung + giọng đọc
 
 safe_zones:
   vertical:

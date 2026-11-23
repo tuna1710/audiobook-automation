@@ -7,6 +7,34 @@ from .waveform import build_waveform_filter
 
 _BEST_ENCODER_INFO = None
 
+def _get_video_perf_config() -> dict:
+    """Đọc cấu hình bố cục dọc và hiệu năng render từ configs/app_config.yaml."""
+    defaults = {
+        "vertical_layout_mode": "square_in_9_16",
+        "vertical_bg_color": "black",
+        "enable_zoompan": True,
+    }
+    try:
+        import yaml
+        cfg_path = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+            "configs", "app_config.yaml"
+        )
+        if os.path.exists(cfg_path):
+            with open(cfg_path, "r", encoding="utf-8") as f:
+                cfg = yaml.safe_load(f) or {}
+            v_def = cfg.get("video", {}).get("defaults", {})
+            if v_def.get("vertical_layout_mode"):
+                defaults["vertical_layout_mode"] = str(v_def["vertical_layout_mode"])
+            if v_def.get("vertical_bg_color"):
+                defaults["vertical_bg_color"] = str(v_def["vertical_bg_color"])
+            if "enable_zoompan" in v_def:
+                defaults["enable_zoompan"] = bool(v_def["enable_zoompan"])
+    except Exception:
+        pass
+    return defaults
+
+
 def get_best_video_encoder():
     """
     Tự động dò phần cứng tăng tốc Video Encoding:
@@ -25,7 +53,7 @@ def get_best_video_encoder():
             _BEST_ENCODER_INFO = {
                 "encoder": "h264_nvenc",
                 "clip_flags": ['-c:v', 'h264_nvenc', '-preset', 'fast', '-cq', '22', '-pix_fmt', 'yuv420p'],
-                "final_flags": ['-c:v', 'h264_nvenc', '-preset', 'fast', '-cq', '20', '-pix_fmt', 'yuv420p']
+                "final_flags": ['-c:v', 'h264_nvenc', '-preset', 'fast', '-cq', '20', '-pix_fmt', 'yuv420p', '-movflags', '+faststart']
             }
             return _BEST_ENCODER_INFO
     except Exception:
@@ -35,7 +63,7 @@ def get_best_video_encoder():
     _BEST_ENCODER_INFO = {
         "encoder": "libx264",
         "clip_flags": ['-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '22', '-threads', '0', '-pix_fmt', 'yuv420p'],
-        "final_flags": ['-c:v', 'libx264', '-preset', 'veryfast', '-crf', '20', '-threads', '0', '-pix_fmt', 'yuv420p']
+        "final_flags": ['-c:v', 'libx264', '-preset', 'veryfast', '-crf', '20', '-threads', '0', '-pix_fmt', 'yuv420p', '-movflags', '+faststart']
     }
     return _BEST_ENCODER_INFO
 
@@ -46,9 +74,15 @@ def escape_ffmpeg_filter_path(p: str) -> str:
     p_abs = os.path.abspath(p)
     return p_abs.replace('\\', '/').replace(':', r'\:').replace("'", r"\'")
 
-def _render_single_scene_clip(idx: int, asset: str, cut: dict, vid_w: int, vid_h: int, fps: int, camera_moves: list, temp_dir: str, enc_info: dict):
+def _render_single_scene_clip(
+    idx: int, asset: str, cut: dict, vid_w: int, vid_h: int, fps: int,
+    camera_moves: list, temp_dir: str, enc_info: dict,
+    is_vertical: bool = False, vertical_layout_mode: str = "square_in_9_16",
+    vertical_bg_color: str = "black", enable_zoompan: bool = True
+):
     """
     Render 1 phân cảnh độc lập (hỗ trợ chạy song song đa luồng).
+    - Ở chế độ square_in_9_16: Giữ nguyên tỷ lệ vuông 1080x1080 đặt giữa nền đen 1080x1920 (không kéo dãn người).
     """
     scene_dur = cut["duration"]
     fade_dur = min(0.30, max(0.08, scene_dur / 4))
@@ -56,16 +90,52 @@ def _render_single_scene_clip(idx: int, asset: str, cut: dict, vid_w: int, vid_h
     frame_count = max(25, int(scene_dur * fps))
     clip_path = os.path.join(temp_dir, f"temp_clip_{idx}.mp4")
 
+    use_square_in_9_16 = is_vertical and (vertical_layout_mode == "square_in_9_16")
+    work_w, work_h = (1080, 1080) if use_square_in_9_16 else (vid_w, vid_h)
+
     if asset.endswith(('.mp4', '.mov', '.webm', '.mkv')):
-        vf_vid = f"scale={vid_w}:{vid_h}:force_original_aspect_ratio=increase,crop={vid_w}:{vid_h},fps={fps},fade=t=in:st=0:d={fade_dur:.2f},fade=t=out:st={st_out:.2f}:d={fade_dur:.2f}"
+        if use_square_in_9_16:
+            vf_vid = (
+                f"scale={work_w}:{work_h}:force_original_aspect_ratio=decrease,"
+                f"pad={vid_w}:{vid_h}:(ow-iw)/2:(oh-ih)/2:{vertical_bg_color},"
+                f"setsar=1,fps={fps},fade=t=in:st=0:d={fade_dur:.2f},fade=t=out:st={st_out:.2f}:d={fade_dur:.2f}"
+            )
+        else:
+            vf_vid = (
+                f"scale={vid_w}:{vid_h}:force_original_aspect_ratio=increase,"
+                f"crop={vid_w}:{vid_h},setsar=1,fps={fps},"
+                f"fade=t=in:st=0:d={fade_dur:.2f},fade=t=out:st={st_out:.2f}:d={fade_dur:.2f}"
+            )
         cmd = [
             'ffmpeg', '-y', '-stream_loop', '-1', '-i', asset,
             '-vf', vf_vid, '-t', f"{scene_dur:.3f}", '-an'
         ] + enc_info["clip_flags"] + [clip_path]
     else:
-        move_template = camera_moves[idx % len(camera_moves)]
-        move_interpolated = move_template.format(frame_count=frame_count, vid_w=vid_w, vid_h=vid_h, fps=fps)
-        vf_img = f"scale={vid_w}:{vid_h},{move_interpolated},fade=t=in:st=0:d={fade_dur:.2f},fade=t=out:st={st_out:.2f}:d={fade_dur:.2f}"
+        if use_square_in_9_16:
+            base_scale = f"scale={work_w}:{work_h}:force_original_aspect_ratio=decrease,pad={work_w}:{work_h}:(ow-iw)/2:(oh-ih)/2:{vertical_bg_color}"
+            if enable_zoompan:
+                move_template = camera_moves[idx % len(camera_moves)]
+                move_interpolated = move_template.format(frame_count=frame_count, vid_w=work_w, vid_h=work_h, fps=fps)
+                vf_img = (
+                    f"{base_scale},{move_interpolated},"
+                    f"pad={vid_w}:{vid_h}:(ow-iw)/2:(oh-ih)/2:{vertical_bg_color},"
+                    f"setsar=1,fade=t=in:st=0:d={fade_dur:.2f},fade=t=out:st={st_out:.2f}:d={fade_dur:.2f}"
+                )
+            else:
+                vf_img = (
+                    f"scale={work_w}:{work_h}:force_original_aspect_ratio=decrease,"
+                    f"pad={vid_w}:{vid_h}:(ow-iw)/2:(oh-ih)/2:{vertical_bg_color},"
+                    f"setsar=1,fps={fps},fade=t=in:st=0:d={fade_dur:.2f},fade=t=out:st={st_out:.2f}:d={fade_dur:.2f}"
+                )
+        else:
+            base_scale = f"scale={vid_w}:{vid_h}:force_original_aspect_ratio=increase,crop={vid_w}:{vid_h}"
+            if enable_zoompan:
+                move_template = camera_moves[idx % len(camera_moves)]
+                move_interpolated = move_template.format(frame_count=frame_count, vid_w=vid_w, vid_h=vid_h, fps=fps)
+                vf_img = f"{base_scale},{move_interpolated},setsar=1,fade=t=in:st=0:d={fade_dur:.2f},fade=t=out:st={st_out:.2f}:d={fade_dur:.2f}"
+            else:
+                vf_img = f"{base_scale},setsar=1,fps={fps},fade=t=in:st=0:d={fade_dur:.2f},fade=t=out:st={st_out:.2f}:d={fade_dur:.2f}"
+
         cmd = [
             'ffmpeg', '-y', '-loop', '1', '-i', asset,
             '-vf', vf_img, '-t', f"{scene_dur:.3f}"
@@ -73,10 +143,18 @@ def _render_single_scene_clip(idx: int, asset: str, cut: dict, vid_w: int, vid_h
 
     res = subprocess.run(cmd, capture_output=True, text=True)
     if res.returncode != 0:
-        # Fallback an toàn nếu phần cứng gặp trở ngại
+        # Fallback an toàn (vẫn giữ tỷ lệ gốc, không kéo dãn)
+        fallback_vf = (
+            f"scale={work_w}:{work_h}:force_original_aspect_ratio=decrease,"
+            f"pad={vid_w}:{vid_h}:(ow-iw)/2:(oh-ih)/2:{vertical_bg_color},"
+            f"setsar=1,fps={fps},fade=t=in:st=0:d={fade_dur:.2f},fade=t=out:st={st_out:.2f}:d={fade_dur:.2f}"
+        ) if use_square_in_9_16 else (
+            f"scale={vid_w}:{vid_h}:force_original_aspect_ratio=increase,crop={vid_w}:{vid_h},"
+            f"setsar=1,fps={fps},fade=t=in:st=0:d={fade_dur:.2f},fade=t=out:st={st_out:.2f}:d={fade_dur:.2f}"
+        )
         cmd_fallback = [
             'ffmpeg', '-y', '-loop', '1', '-i', asset,
-            '-vf', f"scale={vid_w}:{vid_h},fps={fps},fade=t=in:st=0:d={fade_dur:.2f},fade=t=out:st={st_out:.2f}:d={fade_dur:.2f}",
+            '-vf', fallback_vf,
             '-t', f"{scene_dur:.3f}", '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p', clip_path
         ]
         subprocess.run(cmd_fallback, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -91,11 +169,11 @@ def render_ultimate_video(
     sub_font_size: int = 18, temp_dir: str = "temp_work", fonts_dir: str = "fonts"
 ) -> str:
     """
-    ĐỘNG CƠ DỰNG PHIM ĐIỆN ẢNH V19.8 (HIGH SPEED & HARDWARE ACCELERATED):
+    ĐỘNG CƠ DỰNG PHIM ĐIỆN ẢNH V20.1 (HIGH SPEED & HARDWARE ACCELERATED):
     - Tự động nhận diện GPU NVIDIA NVENC (Tesla T4 trên Colab) để render siêu tốc.
     - Xử lý song song đa luồng (Multi-threading Parallel Clips) cho toàn bộ phân cảnh.
-    - Hỗ trợ Native Full Frame: 16:9 (1920x1080) và 9:16 (1080x1920).
-    - Chuẩn hóa Safe Zone 9:16: sub_margin_v = 38 (không wave) / 52 (có wave), cách xa Tiêu đề > 900px, 100% không đè chữ.
+    - Hỗ trợ Native 16:9 (1920x1080) và 9:16 (1080x1920 với khung vuông 1080x1080 giữa nền đen thuần, không kéo dãn).
+    - Chuẩn hóa Safe Zone 9:16: Title ở vùng đen trên (y=140), Subtitle ở vùng đen dưới, 100% không đè ảnh.
     """
     os.makedirs(temp_dir, exist_ok=True)
     os.makedirs(os.path.dirname(output_video_path) or ".", exist_ok=True)
@@ -103,6 +181,10 @@ def render_ultimate_video(
     fps = 24
     is_vertical = "9:16" in aspect_ratio
     vid_w, vid_h = (1080, 1920) if is_vertical else (1920, 1080)
+    perf_cfg = _get_video_perf_config()
+    v_layout_mode = perf_cfg["vertical_layout_mode"]
+    v_bg_color = perf_cfg["vertical_bg_color"]
+    enable_zoompan = perf_cfg["enable_zoompan"]
 
     font_path = os.path.join(fonts_dir, "BeVietnamPro-Bold.ttf")
     if not os.path.exists(font_path):
@@ -120,14 +202,16 @@ def render_ultimate_video(
 
     enc_info = get_best_video_encoder()
 
-    # 1. Render song song các clip phân cảnh qua ThreadPoolExecutor
-    num_workers = min(4, max(2, os.cpu_count() or 2))
+    # 1. Render song song các clip phân cảnh qua ThreadPoolExecutor (cân bằng theo số nhân CPU)
+    cpu_cnt = os.cpu_count() or 2
+    num_workers = min(3, max(1, cpu_cnt)) if enable_zoompan else min(4, max(2, cpu_cnt))
     clip_futures = []
     with ThreadPoolExecutor(max_workers=num_workers) as executor:
         for i, (asset, cut) in enumerate(zip(scene_assets, cuts)):
             f = executor.submit(
                 _render_single_scene_clip,
-                i, asset, cut, vid_w, vid_h, fps, camera_moves, temp_dir, enc_info
+                i, asset, cut, vid_w, vid_h, fps, camera_moves, temp_dir, enc_info,
+                is_vertical, v_layout_mode, v_bg_color, enable_zoompan
             )
             clip_futures.append(f)
 

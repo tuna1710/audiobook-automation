@@ -1,12 +1,32 @@
 import os
+import hashlib
+import shutil
+from contextlib import nullcontext
 from .text_cleaner import clean_voice_name
 
 _GLOBAL_TTS_ENGINE = None
 
+
+def _is_tts_cache_enabled() -> bool:
+    try:
+        import yaml
+        cfg_path = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+            "configs", "app_config.yaml"
+        )
+        if os.path.exists(cfg_path):
+            with open(cfg_path, "r", encoding="utf-8") as f:
+                cfg = yaml.safe_load(f) or {}
+            return bool(cfg.get("performance", {}).get("tts_chunk_cache", True))
+    except Exception:
+        pass
+    return True
+
+
 class TTSEngine:
     """
     Quản lý mô hình VieNeu-TTS Turbo 48kHz.
-    Hỗ trợ nạp lười (Lazy loading), chạy ở chế độ Eager Loop ổn định trên GPU CUDA và CPU.
+    Hỗ trợ nạp lười (Lazy loading), cache âm thanh theo hash nội dung và chạy với torch.inference_mode().
     """
     def __init__(self, model_id: str = "pnnbao-ump/VieNeu-TTS-v3-Turbo"):
         self.model_id = model_id
@@ -34,16 +54,42 @@ class TTSEngine:
 
     def synthesize(self, text: str, voice: str, output_path: str) -> str:
         """
-        Tổng hợp giọng đọc thành file âm thanh WAV.
+        Tổng hợp giọng đọc thành file âm thanh WAV (có cache nếu bật tts_chunk_cache).
         """
+        actual_voice = clean_voice_name(voice)
+        use_cache = _is_tts_cache_enabled()
+        cache_path = None
+
+        if use_cache:
+            cache_dir = os.path.join(os.path.dirname(output_path) or "temp_work", "tts_cache")
+            os.makedirs(cache_dir, exist_ok=True)
+            key_hash = hashlib.sha256(f"{self.model_id}|{actual_voice}|{text}".encode("utf-8")).hexdigest()[:24]
+            cache_path = os.path.join(cache_dir, f"{key_hash}.wav")
+            if os.path.exists(cache_path) and os.path.getsize(cache_path) > 1024:
+                print(f"⚡ [TTS Cache Hit] Tái sử dụng file giọng đọc đã tổng hợp ({key_hash}.wav)")
+                shutil.copyfile(cache_path, output_path)
+                return output_path
+
         if self.engine is None:
             self._initialize()
         if self.engine is None:
             raise RuntimeError("VieNeu-TTS engine chưa được cài đặt hoặc khởi tạo thất bại.")
 
-        actual_voice = clean_voice_name(voice)
-        audio_result = self.engine.infer(text=text, voice=actual_voice)
+        try:
+            import torch
+            ctx = torch.inference_mode()
+        except Exception:
+            ctx = nullcontext()
+
+        with ctx:
+            audio_result = self.engine.infer(text=text, voice=actual_voice)
         self.engine.save(audio_result, output_path)
+
+        if use_cache and cache_path and os.path.exists(output_path):
+            try:
+                shutil.copyfile(output_path, cache_path)
+            except Exception:
+                pass
         return output_path
 
 

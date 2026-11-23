@@ -83,6 +83,20 @@ def sanitize_prompt_for_realism(prompt: str, pipe=None) -> str:
     return safe_prompt
 
 
+def _get_vertical_layout_mode() -> str:
+    """Đọc chế độ bố cục dọc từ configs/app_config.yaml (mặc định: square_in_9_16)."""
+    try:
+        import yaml
+        cfg_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "configs", "app_config.yaml")
+        if os.path.exists(cfg_path):
+            with open(cfg_path, "r", encoding="utf-8") as f:
+                cfg = yaml.safe_load(f) or {}
+            return cfg.get("video", {}).get("defaults", {}).get("vertical_layout_mode", "square_in_9_16")
+    except Exception:
+        pass
+    return "square_in_9_16"
+
+
 def generate_sdxl_metaphor_image(
     clean_prompt: str,
     aspect_ratio: str,
@@ -94,14 +108,22 @@ def generate_sdxl_metaphor_image(
 ) -> str:
     """
     Sinh ảnh điện ảnh bằng SDXL / SD-Turbo V20:
-    - 16:9: 1152x640 (chuẩn tỷ lệ 16:9 chất lượng cao)
-    - 9:16: 640x1152 (chuẩn tỷ lệ 9:16)
-    - Resize về 1920x1080 hoặc 1080x1920 bằng LANCZOS + bộ lọc làm nét chi tiết.
+    - 16:9: 1152x640 -> resize 1920x1080
+    - 9:16 (square_in_9_16): 768x768 -> resize 1080x1080 (tỷ lệ vuông 1:1 chuẩn tự nhiên, không kéo dãn người)
+    - 9:16 (full_crop): 640x1152 -> resize 1080x1920
     - Áp dụng Negative Prompt triệt tiêu dị dạng cho Gothic Noir & Trinh Thám.
     """
     is_vertical = "9:16" in aspect_ratio
-    gen_w, gen_h = (640, 1152) if is_vertical else (1152, 640)
-    final_w, final_h = (1080, 1920) if is_vertical else (1920, 1080)
+    if is_vertical:
+        if _get_vertical_layout_mode() == "square_in_9_16":
+            gen_w, gen_h = (768, 768)
+            final_w, final_h = (1080, 1080)
+        else:
+            gen_w, gen_h = (640, 1152)
+            final_w, final_h = (1080, 1920)
+    else:
+        gen_w, gen_h = (1152, 640)
+        final_w, final_h = (1920, 1080)
 
     from PIL import Image, ImageEnhance, ImageDraw
     if pipe is None:
@@ -125,14 +147,15 @@ def generate_sdxl_metaphor_image(
             curr_seed = seed if seed is not None else (10000 + scene_idx * 17)
             generator = torch.Generator(device=pipe.device).manual_seed(curr_seed)
 
-            img = pipe(
-                prompt=safe_prompt,
-                num_inference_steps=max(steps, 2),
-                guidance_scale=0.0,
-                width=gen_w,
-                height=gen_h,
-                generator=generator
-            ).images[0]
+            with torch.inference_mode():
+                img = pipe(
+                    prompt=safe_prompt,
+                    num_inference_steps=max(steps, 2),
+                    guidance_scale=0.0,
+                    width=gen_w,
+                    height=gen_h,
+                    generator=generator
+                ).images[0]
 
             img = img.resize((final_w, final_h), Image.Resampling.LANCZOS)
 
