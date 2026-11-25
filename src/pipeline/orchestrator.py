@@ -320,19 +320,24 @@ def process_full_pipeline(
         if "không hiển thị" not in mode_lower:
             try:
                 from ..video.book_mockup import BOOK_SCENE_BACKGROUNDS, compose_book_on_scene
-                from ..ai_director import generate_sdxl_image_safe
+                from ..ai_director import generate_sdxl_metaphor_image
                 is_vert = "9:16" in str(aspect_ratio)
                 tgt_size = (1080, 1920) if is_vert else (1920, 1080)
-                sdxl_w, sdxl_h = (576, 1024) if is_vert else (1024, 576)
 
                 book_scenes = []
                 num_variants = 4 if "100%" in mode_lower else 3
                 for b_idx in range(num_variants):
                     bg_prompt = BOOK_SCENE_BACKGROUNDS[b_idx % len(BOOK_SCENE_BACKGROUNDS)]
-                    bg_tmp = os.path.join(temp_dir, f"book_bg_{session_id}_{b_idx}.png")
+                    bg_tmp = os.path.join(temp_dir, f"book_bg_{session_id}_{b_idx}.jpg")
                     bg_ok = False
                     if "sdxl" in visual_mode.lower() or "nghệ thuật" in visual_mode.lower():
-                        bg_ok = generate_sdxl_image_safe(bg_prompt, bg_tmp, width=sdxl_w, height=sdxl_h)
+                        res_bg = generate_sdxl_metaphor_image(
+                            clean_prompt=bg_prompt,
+                            aspect_ratio=str(aspect_ratio),
+                            out_img=bg_tmp,
+                            scene_idx=100 + b_idx
+                        )
+                        bg_ok = bool(res_bg and os.path.exists(bg_tmp))
                     if not bg_ok:
                         # Tái sử dụng ảnh cảnh có sẵn nếu không dùng SDXL
                         cand = scene_assets[b_idx % len(scene_assets)]
