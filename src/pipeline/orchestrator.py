@@ -39,7 +39,7 @@ def generate_v20_scenes_for_cuts(
     aspect_ratio: str,
     raw_keys_input: str,
     gemini_api_key: str = "",
-    gemini_model_choice: str = "gemini-3.5-flash-lite",
+    gemini_model_choice: str = "gemini-4-hydrogen",
     topic_title: str = "",
     visual_concept: str = "",
     allow_reuse: bool = False,
@@ -185,7 +185,7 @@ def process_full_pipeline(
     num_scenes_slider: int = 12,
     pexels_key_input: str = "",
     gemini_api_key_input: str = "",
-    gemini_model_input: str = "gemini-3.5-flash-lite",
+    gemini_model_input: str = "gemini-4-hydrogen",
     allow_reuse_input: bool = False,
     voice_selected: str = "Thiền Tâm Đức",
     topic_title_custom: str = "",
@@ -210,6 +210,9 @@ def process_full_pipeline(
     temp_dir: str = "temp_work",
     outputs_dir: str = "outputs",
     progress=None,
+    voice_speed: float = 1.0,
+    book_cover_path: str = "",
+    book_cover_mode: str = "☕ Xen kẽ cảnh Sách trên bàn Cafe/Trà + Cảnh minh họa nội dung",
     **kwargs
 ):
     """
@@ -244,11 +247,11 @@ def process_full_pipeline(
     # 1. Sinh âm thanh VieNeu-TTS
     actual_voice = clean_voice_name(voice_selected if voice_selected else prof.get("voice", "Thiền Tâm Đức"))
     if progress is not None:
-        progress(0.20, desc=f"Đang đọc văn bản bằng giọng {actual_voice}...")
+        progress(0.20, desc=f"Đang đọc văn bản bằng giọng {actual_voice} (tốc độ {voice_speed}x)...")
 
     voice_audio_path = os.path.join(temp_dir, f"voice_{session_id}.wav")
     tts_engine = get_tts_engine()
-    tts_engine.synthesize(speech_text, actual_voice, voice_audio_path)
+    tts_engine.synthesize(speech_text, actual_voice, voice_audio_path, speed=voice_speed)
 
     # 2. Xử lý nhạc nền BGM
     if progress is not None:
@@ -308,6 +311,67 @@ def process_full_pipeline(
         outputs_dir=outputs_dir
     )
 
+    # 5.5 Dựng cảnh Sách 3D nằm trên bàn Cafe / Bàn Trà (nếu có ảnh bìa sách)
+    actual_cover_path = ""
+    if book_cover_path:
+        actual_cover_path = book_cover_path.name if hasattr(book_cover_path, "name") else str(book_cover_path)
+    if actual_cover_path and os.path.exists(actual_cover_path) and scene_assets:
+        mode_lower = str(book_cover_mode or "").lower()
+        if "không hiển thị" not in mode_lower:
+            try:
+                from ..video.book_mockup import BOOK_SCENE_BACKGROUNDS, compose_book_on_scene
+                from ..ai_director import generate_sdxl_image_safe
+                is_vert = "9:16" in str(aspect_ratio)
+                tgt_size = (1080, 1920) if is_vert else (1920, 1080)
+                sdxl_w, sdxl_h = (576, 1024) if is_vert else (1024, 576)
+
+                book_scenes = []
+                num_variants = 4 if "100%" in mode_lower else 3
+                for b_idx in range(num_variants):
+                    bg_prompt = BOOK_SCENE_BACKGROUNDS[b_idx % len(BOOK_SCENE_BACKGROUNDS)]
+                    bg_tmp = os.path.join(temp_dir, f"book_bg_{session_id}_{b_idx}.png")
+                    bg_ok = False
+                    if "sdxl" in visual_mode.lower() or "nghệ thuật" in visual_mode.lower():
+                        bg_ok = generate_sdxl_image_safe(bg_prompt, bg_tmp, width=sdxl_w, height=sdxl_h)
+                    if not bg_ok:
+                        # Tái sử dụng ảnh cảnh có sẵn nếu không dùng SDXL
+                        cand = scene_assets[b_idx % len(scene_assets)]
+                        if cand and os.path.exists(cand) and not cand.endswith(('.mp4', '.mov', '.webm', '.mkv')):
+                            bg_tmp = cand
+                            bg_ok = True
+                        else:
+                            bg_tmp = ""
+
+                    out_book_scene = os.path.join(temp_dir, f"book_scene_{session_id}_{b_idx}.png")
+                    compose_book_on_scene(
+                        cover_path=actual_cover_path,
+                        bg_image_path=bg_tmp,
+                        output_path=out_book_scene,
+                        target_size=tgt_size,
+                        layout_idx=b_idx
+                    )
+                    if os.path.exists(out_book_scene):
+                        book_scenes.append(out_book_scene)
+
+                if book_scenes:
+                    if "100%" in mode_lower:
+                        for s_i in range(len(scene_assets)):
+                            scene_assets[s_i] = book_scenes[s_i % len(book_scenes)]
+                    elif "intro" in mode_lower or "chỉ dùng" in mode_lower:
+                        scene_assets[0] = book_scenes[0]
+                        if len(scene_assets) > 2:
+                            scene_assets[-1] = book_scenes[min(1, len(book_scenes) - 1)]
+                    else:
+                        # Xen kẽ: Intro, Outro và mỗi 4 cảnh
+                        for s_i in range(len(scene_assets)):
+                            if s_i == 0 or s_i == len(scene_assets) - 1 or (s_i % 4 == 0):
+                                scene_assets[s_i] = book_scenes[(s_i // 4) % len(book_scenes)]
+                    if gallery_thumbs is not None:
+                        gallery_thumbs = book_scenes[:2] + gallery_thumbs
+                    print(f"📚 Đã dựng {len(book_scenes)} cảnh Sách 3D trên bàn Cafe/Trà thành công!")
+            except Exception as bk_err:
+                print(f"⚠️ Cảnh báo dựng cảnh Sách 3D: {bk_err}")
+
     # 6. Dựng video MP4 hoàn thiện
     if progress is not None:
         progress(0.85, desc=f"Đang render video MP4 ({aspect_ratio} - Native Full Frame)...")
@@ -339,7 +403,8 @@ def process_full_pipeline(
             visual_mode=visual_mode,
             gemini_api_key=actual_gemini_key,
             gemini_model=gemini_model_input,
-            outputs_dir=outputs_dir
+            outputs_dir=outputs_dir,
+            book_cover_path=actual_cover_path
         )
         if thumb_path and os.path.exists(thumb_path):
             if gallery_thumbs is None:
@@ -487,7 +552,10 @@ def process_batch_pipeline(
     check_published_first: bool = True,
     temp_dir: str = "temp_work",
     outputs_dir: str = "outputs",
-    progress=None
+    progress=None,
+    voice_speed: float = 1.0,
+    book_cover_path: str = "",
+    book_cover_mode: str = "☕ Xen kẽ cảnh Sách trên bàn Cafe/Trà + Cảnh minh họa nội dung"
 ) -> str:
     """
     HỆ THỐNG XỬ LÝ HÀNG LOẠT NHIỀU KỊCH BẢN (BATCH PROCESSING) V20:
@@ -577,7 +645,10 @@ def process_batch_pipeline(
                 custom_yt_desc=custom_yt_desc,
                 temp_dir=temp_dir,
                 outputs_dir=outputs_dir,
-                progress=progress
+                progress=progress,
+                voice_speed=voice_speed,
+                book_cover_path=book_cover_path,
+                book_cover_mode=book_cover_mode
             )
             success_count += 1
             results_log.append(f"✅ [{i}/{total_files}] Hoàn tất: {file_name} -> {os.path.basename(v_path)}")

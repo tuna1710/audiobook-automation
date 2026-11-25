@@ -131,6 +131,23 @@ CHANNEL_PROFILES_PRESET: Dict[str, Dict[str, Any]] = {
             "panoramic aerial view of bustling financial district skyscrapers illuminated at dusk"
         ]
     },
+    "📚 Review Sách & Bán Sách (BookTok / Affiliate)": {
+        "channel_name": "Review & Giới Thiệu Sách",
+        "genre_role": "Đạo diễn Hình ảnh Chuyên nghiệp cho Video Review Sách, Tóm Tắt Sách & Bán Sách (BookTok / Affiliate Marketing), ưu tiên không gian đọc sách ấm áp, bàn cafe/bàn trà thẩm mỹ và hình ảnh minh họa nội dung sách trực quan",
+        "visual_concept": "Cozy aesthetic wooden cafe table with a warm cup of latte, soft morning sunlight by window, peaceful bookstore reading corner, shallow depth of field, 35mm photography, 8k photorealistic",
+        "style_suffix": ", warm editorial book aesthetic, cozy reading atmosphere, shallow depth of field, 35mm photography, 8k photorealistic",
+        "voice": "Mai Anh",
+        "tags": "review sách, tóm tắt sách, sách hay nên đọc, booktok việt nam, giới thiệu sách hay, đọc sách mỗi ngày, phát triển bản thân, sách nói, mua sách chính hãng",
+        "desc_template": "📚 Review & Giới Thiệu Sách Hay: Khám phá những giá trị cốt lõi và bài học đắt giá nhất từ cuốn sách.\n\n🛒 ĐẶT MUA SÁCH CHÍNH HÃNG TẠI ĐÂY:\n👉 Link Shopee/TikTok Shop: [Dán link Affiliate của bạn tại đây]\n🎁 Nhập mã giảm giá (nếu có): ...\n\nĐăng ký kênh để đón xem các video review sách hay mỗi tuần!\n#ReviewSach #SachHayNenDoc #BookTokVietNam #TomTatSach #DocSachMoiNgay",
+        "token_filename": "token.json",
+        "fallback_keywords": [
+            "hardcover book on wooden cafe table with coffee",
+            "cozy tea table with ceramic teapot and warm sunlight",
+            "person reading book by sunlit window in quiet library",
+            "aesthetic wooden desk with warm reading lamp and notebook",
+            "stack of books on rustic wooden table in cozy bookstore"
+        ]
+    },
     "⚙️ Kênh Tùy Chỉnh (Custom Profile Của Riêng Bạn)": {
         "channel_name": "Kênh Tùy Chỉnh",
         "genre_role": "Đạo diễn Hình ảnh Điện ảnh (Cinematic Visual Storyboard Director)",

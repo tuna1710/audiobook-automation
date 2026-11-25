@@ -71,19 +71,22 @@ def extract_gemini_candidate_text(candidates: list) -> str:
     return "".join(all_parts).strip()
 
 
-def clean_gemini_model_name(raw_model_str: str, default_model: str = "gemini-3.5-flash-lite") -> str:
+def clean_gemini_model_name(raw_model_str: str, default_model: str = "gemini-4-hydrogen") -> str:
     """
-    Chuẩn hóa tên model Gemini từ giao diện Gradio thành tên model API chính thức mới nhất theo tài liệu Google AI (Thế hệ Gemini 3).
-    Hỗ trợ 100% các endpoint Active & Stable: gemini-3.5-flash-lite, gemini-3.1-flash-lite, gemini-3.5-flash, gemini-3.6-flash, gemini-3.7-flash, gemini-3.8-flash.
-    Loại bỏ hoàn toàn các model đã tắt hoặc bị chặn 404.
+    Chuẩn hóa tên model Gemini từ giao diện Gradio thành tên model API chính thức mới nhất theo tài liệu Google AI (Chỉ dùng Free Tier).
+    Hỗ trợ các endpoint Active & Free Tier: gemini-4-hydrogen, gemini-3.5-flash-lite, gemini-3.8-flash, gemini-3.6-flash, gemini-3.1-flash-lite.
+    Tự động chuyển hướng các model đã deprecated (3.7-flash, 3.5-flash, 2.5-flash) sang model thay thế hợp lệ.
     """
     if not raw_model_str:
         return default_model
     s = str(raw_model_str).lower().strip()
+    if '4-hydrogen' in s or 'hydrogen' in s:
+        return 'gemini-4-hydrogen'
     if '3.8' in s:
         return 'gemini-3.8-flash'
     if '3.7' in s:
-        return 'gemini-3.7-flash'
+        # gemini-3.7-flash đã deprecated -> chuyển sang 3.8-flash
+        return 'gemini-3.8-flash'
     if '3.6' in s:
         return 'gemini-3.6-flash'
     if '3.5-flash-lite' in s or ('3.5' in s and 'lite' in s):
@@ -91,15 +94,17 @@ def clean_gemini_model_name(raw_model_str: str, default_model: str = "gemini-3.5
     if '3.1-flash-lite' in s or ('3.1' in s and 'lite' in s) or '3.1' in s:
         return 'gemini-3.1-flash-lite'
     if '3.5' in s:
-        return 'gemini-3.5-flash'
+        # gemini-3.5-flash (bản thường) đã deprecated -> chuyển sang 3.6-flash
+        return 'gemini-3.6-flash'
     if '3-flash' in s:
-        return 'gemini-3-flash-preview'
+        return 'gemini-3.8-flash'
     if '2.5-flash' in s:
-        return 'gemini-2.5-flash'
+        # gemini-2.5-flash đã deprecated -> chuyển sang 3.5-flash-lite
+        return 'gemini-3.5-flash-lite'
     if 'flash-lite' in s or 'lite' in s:
         return 'gemini-3.5-flash-lite'
     if 'flash' in s:
-        return 'gemini-3.5-flash-lite'
+        return 'gemini-4-hydrogen'
     return default_model
 
 
@@ -303,7 +308,7 @@ def call_gemini_all_in_one_director(
     topic_title: str,
     visual_concept: str,
     gemini_key: str,
-    selected_model: str = "gemini-3.5-flash-lite",
+    selected_model: str = "gemini-4-hydrogen",
     channel_profile: str = "🕯️ Trinh Thám & Kinh Dị Gothic (Kênh Nỗi Sợ AudioBook)"
 ) -> Tuple[Dict[int, str], List[Tuple[float, str]]]:
     """
@@ -318,7 +323,7 @@ def call_gemini_all_in_one_director(
 
     import requests
     cleaned_key = gemini_key.strip().strip('"').strip("'").strip()
-    clean_model = clean_gemini_model_name(selected_model, default_model="gemini-3.5-flash-lite")
+    clean_model = clean_gemini_model_name(selected_model, default_model="gemini-4-hydrogen")
     total_cuts = len(cuts)
 
     from ..pipeline.channel_profiles import get_channel_profile
@@ -384,7 +389,7 @@ HÃY TRẢ VỀ ĐÚNG ĐỊNH DẠNG JSON SAU (không dùng markdown ```json):
 }}"""
 
         target_models = [clean_model]
-        for fm in ["gemini-3.5-flash-lite", "gemini-3.1-flash-lite", "gemini-3.5-flash", "gemini-3.6-flash", "gemini-3.7-flash", "gemini-3.8-flash", "gemini-3-flash-preview", "gemini-2.5-flash"]:
+        for fm in ["gemini-4-hydrogen", "gemini-3.5-flash-lite", "gemini-3.8-flash", "gemini-3.6-flash", "gemini-3.1-flash-lite"]:
             if fm not in target_models:
                 target_models.append(fm)
 
@@ -478,13 +483,13 @@ HÃY TRẢ VỀ ĐÚNG ĐỊNH DẠNG JSON SAU (không dùng markdown ```json):
     return {}, []
 
 
-def call_gemini_ai_director(cuts, full_speech: str, topic_title: str, visual_concept: str, gemini_key: str, selected_model: str = "gemini-3.5-flash-lite"):
+def call_gemini_ai_director(cuts, full_speech: str, topic_title: str, visual_concept: str, gemini_key: str, selected_model: str = "gemini-4-hydrogen"):
     """Alias tương thích ngược."""
     prompts, _ = call_gemini_all_in_one_director(cuts, full_speech, topic_title, visual_concept, gemini_key, selected_model)
     return prompts if prompts else None
 
 
-def generate_micro_batch_visual_prompts(cuts, visual_concept: str, api_key: str, model_name: str = "gemini-3.5-flash-lite", art_style: str = "cinematic", batch_size: int = 45):
+def generate_micro_batch_visual_prompts(cuts, visual_concept: str, api_key: str, model_name: str = "gemini-4-hydrogen", art_style: str = "cinematic", batch_size: int = 45):
     """Tương thích với các gọi hàm cũ."""
     sc_dict, _ = call_gemini_all_in_one_director(cuts, "", "", visual_concept, api_key, selected_model=model_name)
     res = []
@@ -494,6 +499,6 @@ def generate_micro_batch_visual_prompts(cuts, visual_concept: str, api_key: str,
     return res
 
 
-def enhance_visual_prompt_gemini(scene_text: str, visual_concept: str, api_key: str, model_name: str = "gemini-3.5-flash-lite", art_style: str = "cinematic") -> str:
+def enhance_visual_prompt_gemini(scene_text: str, visual_concept: str, api_key: str, model_name: str = "gemini-4-hydrogen", art_style: str = "cinematic") -> str:
     """Tương thích ngược đơn lẻ."""
     return analyze_sentence_to_detective_prompt(scene_text, 0, 0, visual_concept=visual_concept)

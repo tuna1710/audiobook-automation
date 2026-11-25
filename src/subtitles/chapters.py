@@ -7,7 +7,7 @@ def recalculate_and_inject_youtube_chapters(
     segments_data: list,
     total_dur: float,
     gemini_api_key: str = "",
-    gemini_model: str = "gemini-3.5-flash-lite",
+    gemini_model: str = "gemini-4-hydrogen",
     precomputed_chapters: list = None
 ) -> str:
     """

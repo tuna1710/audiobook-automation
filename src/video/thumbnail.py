@@ -73,9 +73,10 @@ def generate_ctr_booster_thumbnail(
     session_id: str,
     visual_mode: str = "",
     gemini_api_key: str = "",
-    gemini_model: str = "gemini-3.5-flash-lite",
+    gemini_model: str = "gemini-4-hydrogen",
     outputs_dir: str = "outputs",
-    fonts_dir: str = "fonts"
+    fonts_dir: str = "fonts",
+    book_cover_path: str = ""
 ) -> str:
     """
     TỰ ĐỘNG TẠO THUMBNAIL YOUTUBE CTR BOOSTER (1280x720 HD) V20:
@@ -129,6 +130,19 @@ def generate_ctr_booster_thumbnail(
             base_ready = True
         except Exception:
             pass
+
+    if base_ready and book_cover_path and os.path.exists(book_cover_path):
+        try:
+            from .book_mockup import compose_book_on_scene
+            compose_book_on_scene(
+                cover_path=book_cover_path,
+                bg_image_path=raw_base_path,
+                output_path=raw_base_path,
+                target_size=(1280, 720),
+                layout_idx=0
+            )
+        except Exception as thumb_book_err:
+            print(f"⚠️ Không thể ghép ảnh bìa sách vào thumbnail: {thumb_book_err}")
 
     font_path = find_system_font(fonts_dir)
     escaped_font = str(font_path).replace(':', r'\:')

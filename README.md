@@ -19,8 +19,8 @@
 ---
 
 > [!IMPORTANT]
-> **🚀 Phiên Bản V20.0 Chính Thức: Subtitle-Locked Scene Sync & All-in-One Gemini 3.8 Flash**
-> - **📺 Hệ Thống Hồ Sơ Đa Kênh 1-Click (Multi-Channel Profiles)**: 8 preset chuyên biệt với mỹ thuật SDXL, phong cách âm nhạc, giọng đọc, thẻ tags và mẫu mô tả SEO riêng biệt:
+> **🚀 Phiên Bản V20.0 Chính Thức: Subtitle-Locked Scene Sync & All-in-One Gemini 4 Hydrogen**
+> - **📺 Hệ Thống Hồ Sơ Đa Kênh 1-Click (Multi-Channel Profiles)**: 9 preset chuyên biệt với mỹ thuật SDXL, phong cách âm nhạc, giọng đọc, thẻ tags và mẫu mô tả SEO riêng biệt:
 >   1. `🕯️ Trinh Thám & Kinh Dị Gothic (Kênh Nỗi Sợ AudioBook)`
 >   2. `🪷 Phật Pháp, Thiền Định & Chữa Lành Tâm Hồn`
 >   3. `⚔️ Lịch Sử, Cổ Trang & Huyền Sử Hào Hùng`
@@ -28,9 +28,10 @@
 >   5. `🌿 Bài Học Cuộc Sống, Tâm Lý & Podcast`
 >   6. `🧚 Cổ Tích, Thần Thoại & Truyện Dân Gian`
 >   7. `📈 Kinh Doanh, Tài Chính & Đầu Tư Thịnh Vượng`
->   8. `⚙️ Kênh Tùy Chỉnh (Custom Profile Của Riêng Bạn)`
+>   8. `📚 Review Sách & Bán Sách (BookTok / Affiliate)`
+>   9. `⚙️ Kênh Tùy Chỉnh (Custom Profile Của Riêng Bạn)`
 > - **⚡ Khóa Chặt Phân Cảnh Theo Subtitle (Subtitle-Locked Scene Sync V20)**: 100% hình đi cùng sub, bắt đầu câu thoại nào bức ảnh mới xuất hiện tức thì. Nhịp cắt lý tưởng từ 2.4s đến 6.8s, nối tiếp liền mạch mili-giây, khử sạch hoàn toàn lỗi trôi lệch thời gian.
-> - **🤖 AI Đạo Diễn All-in-One (Gemini 3.8 Flash & Gemini 3.5 Flash Lite)**: 1 API Call duy nhất sinh cả Prompts tả thực trực diện (Direct Narrative Action, NO METAPHORS) và YouTube Chapters SEO. Tích hợp bộ lọc Thinking Blocks và Exponential Backoff Retry (3s, 6s, 10s) chống lỗi 429/503.
+> - **🤖 AI Đạo Diễn All-in-One (Gemini 4 Hydrogen & Gemini 3.5 Flash-Lite / 3.8 Flash - Free Tier)**: 1 API Call duy nhất sinh cả Prompts tả thực trực diện (Direct Narrative Action, NO METAPHORS) và YouTube Chapters SEO. Tích hợp bộ lọc Thinking Blocks và Exponential Backoff Retry (3s, 6s, 10s) chống lỗi 429/503.
 > - **🛡️ Gothic & Detective Smart Fallback Engine**: Phân tích ngữ nghĩa 9 chủ đề trinh thám gothic (hung khí, hiện trường, mật mã, thám tử, mưa đêm...), tạo ảnh 100% độc bản không lo trùng lặp.
 > - **🎬 Kho Video Stock Đa Nguồn (Pexels / Coverr / Mixkit)**: Tự động xoay tua API key và scrape video HD không bản quyền sạch quảng cáo.
 > - **🎧 Nghe Thử Giọng Đọc (Voice Preview)**: Nút phát thử giọng VieNeu-TTS trực tiếp trên WebUI trước khi render.

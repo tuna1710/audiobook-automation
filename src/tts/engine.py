@@ -32,9 +32,10 @@ class TTSEngine:
             print(f"⚠️ Cảnh báo khởi tạo VieNeu-TTS: {e}")
             self.engine = None
 
-    def synthesize(self, text: str, voice: str, output_path: str) -> str:
+    def synthesize(self, text: str, voice: str, output_path: str, speed: float = 1.0) -> str:
         """
         Tổng hợp giọng đọc thành file âm thanh WAV.
+        Hỗ trợ chỉnh tốc độ đọc (speed: 0.75 - 1.50) qua FFmpeg atempo giữ nguyên cao độ giọng.
         """
         if self.engine is None:
             self._initialize()
@@ -43,7 +44,32 @@ class TTSEngine:
 
         actual_voice = clean_voice_name(voice)
         audio_result = self.engine.infer(text=text, voice=actual_voice)
-        self.engine.save(audio_result, output_path)
+
+        try:
+            spd = max(0.75, min(1.50, float(speed if speed is not None else 1.0)))
+        except Exception:
+            spd = 1.0
+
+        if abs(spd - 1.0) >= 0.02:
+            import subprocess
+            raw_tmp = f"{output_path}.raw.wav"
+            self.engine.save(audio_result, raw_tmp)
+            try:
+                cmd = [
+                    "ffmpeg", "-y", "-i", raw_tmp,
+                    "-filter:a", f"atempo={spd:.2f}",
+                    output_path
+                ]
+                subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                if os.path.exists(raw_tmp):
+                    os.remove(raw_tmp)
+            except Exception as spd_err:
+                print(f"⚠️ Không thể chỉnh tốc độ đọc ({spd}x): {spd_err}. Dùng tốc độ gốc 1.0x.")
+                if os.path.exists(raw_tmp):
+                    os.replace(raw_tmp, output_path)
+        else:
+            self.engine.save(audio_result, output_path)
+
         return output_path
 
 
@@ -54,18 +80,19 @@ def get_tts_engine() -> TTSEngine:
     return _GLOBAL_TTS_ENGINE
 
 
-def preview_voice_sample(voice_selected: str, temp_dir: str = "temp_work") -> str:
+def preview_voice_sample(voice_selected: str, temp_dir: str = "temp_work", speed: float = 1.0) -> str:
     """
-    Tạo nhanh một đoạn phát thử âm thanh cho giọng đọc được chọn.
+    Tạo nhanh một đoạn phát thử âm thanh cho giọng đọc được chọn (kèm tốc độ đọc).
     """
     actual_voice = clean_voice_name(voice_selected)
     preview_text = f"Xin chào, đây là giọng đọc thử nghiệm {actual_voice} trên hệ thống Studio V20."
     os.makedirs(temp_dir, exist_ok=True)
-    preview_file = os.path.join(temp_dir, f"preview_{actual_voice.replace(' ', '_')}.wav")
+    spd_tag = str(round(float(speed or 1.0), 2)).replace(".", "_")
+    preview_file = os.path.join(temp_dir, f"preview_{actual_voice.replace(' ', '_')}_{spd_tag}.wav")
 
     try:
         engine = get_tts_engine()
-        return engine.synthesize(preview_text, actual_voice, preview_file)
+        return engine.synthesize(preview_text, actual_voice, preview_file, speed=speed)
     except Exception as e:
         print(f"⚠️ Lỗi nghe thử giọng ({actual_voice}): {e}")
         return None

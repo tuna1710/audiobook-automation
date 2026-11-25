@@ -22,6 +22,8 @@ def parse_args():
     parser.add_argument("--script", type=str, default="", help="Đường dẫn file kịch bản khi chạy --cli")
     parser.add_argument("--aspect-ratio", type=str, default="16:9", choices=["16:9", "9:16"], help="Định dạng video (16:9 hoặc 9:16)")
     parser.add_argument("--voice", type=str, default="Thiền Tâm Đức", help="Tên giọng đọc VieNeu-TTS")
+    parser.add_argument("--speed", type=float, default=1.0, help="Tốc độ đọc (0.75 - 1.50, mặc định: 1.0)")
+    parser.add_argument("--book-cover", type=str, default="", help="Đường dẫn ảnh bìa sách (tùy chọn cho video bán sách)")
     return parser.parse_args()
 
 
@@ -78,7 +80,9 @@ def main():
             aspect_ratio=ratio_label,
             voice_selected=args.voice,
             gemini_api_key_input=gemini_key,
-            pexels_key_input=pexels_keys
+            pexels_key_input=pexels_keys,
+            voice_speed=args.speed,
+            book_cover_path=args.book_cover
         )
         print(res[4])  # In status message
         sys.exit(0)

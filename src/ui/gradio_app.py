@@ -59,11 +59,11 @@ SYNC_MODES = [
 ]
 
 GEMINI_MODELS = [
-    "⚡ gemini-3.5-flash-lite (Khuyên dùng Free Tier - Siêu nhanh & Tiết kiệm Quota)",
-    "🌟 gemini-3.8-flash (Chất lượng đạo diễn cao nhất - Chuẩn All-in-One)",
-    "⚖️ gemini-3.5-flash (Cân bằng tốc độ & Độ chi tiết)",
-    "🛡️ gemini-3.1-flash-lite (Dự phòng ổn định dòng Lite)",
-    "🎯 gemini-3.7-flash (Tư duy & Đạo diễn phân cảnh nâng cao)"
+    "🚀 gemini-4-hydrogen (Mới nhất - Khuyên dùng, Free Tier)",
+    "⚡ gemini-3.5-flash-lite (Siêu nhanh & Tiết kiệm Quota Free Tier)",
+    "🌟 gemini-3.8-flash (Ổn định dòng 3.x - Chất lượng đạo diễn cao)",
+    "⚖️ gemini-3.6-flash (Cân bằng tốc độ & Độ chi tiết)",
+    "🛡️ gemini-3.1-flash-lite (Dự phòng dòng Lite)"
 ]
 
 VOICE_OPTIONS = [
@@ -276,6 +276,26 @@ Một bí mật kinh hoàng sắp sửa được phơi bày trong bóng tối m�
                                 scale=4
                             )
 
+                        with gr.Accordion("📚 CẤU HÌNH REVIEW & BÁN SÁCH (ĐẶT SÁCH 3D TRÊN BÀN CAFE / BÀN TRÀ)", open=False):
+                            with gr.Row():
+                                book_cover_input = gr.Image(
+                                    type="filepath",
+                                    label="📕 Tải Lên Ảnh Bìa Cuốn Sách (Tùy chọn):",
+                                    height=170,
+                                    scale=4
+                                )
+                                book_cover_mode = gr.Dropdown(
+                                    label="☕ Chế độ hiển thị Sách 3D trong Video:",
+                                    choices=[
+                                        "☕ Xen kẽ cảnh Sách trên bàn Cafe/Trà + Cảnh minh họa nội dung",
+                                        "📖 100% Cảnh Sách trên nhiều bàn Cafe / Bàn Trà / Bàn Đọc Sách",
+                                        "🎬 Chỉ dùng cho Intro/Outro & Thumbnail",
+                                        "🚫 Không hiển thị trong video (Chỉ dùng làm Thumbnail)"
+                                    ],
+                                    value="☕ Xen kẽ cảnh Sách trên bàn Cafe/Trà + Cảnh minh họa nội dung",
+                                    scale=6
+                                )
+
                         with gr.Row():
                             sync_mode_dropdown = gr.Dropdown(
                                 label="⚡ Cơ chế Đồng Bộ Phân Cảnh (Subtitle Sync):",
@@ -347,6 +367,14 @@ Một bí mật kinh hoàng sắp sửa được phơi bày trong bóng tối m�
                                 choices=VOICE_OPTIONS,
                                 value=VOICE_OPTIONS[0],
                                 scale=3
+                            )
+                            voice_speed_slider = gr.Slider(
+                                minimum=0.75,
+                                maximum=1.50,
+                                value=1.0,
+                                step=0.05,
+                                label="⏱️ Tốc độ đọc (1.0x):",
+                                scale=2
                             )
                             btn_preview_voice = gr.Button("🎧 Nghe thử giọng này", variant="secondary", scale=1)
                             title_top_box = gr.Textbox(
@@ -483,11 +511,65 @@ Một bí mật kinh hoàng sắp sửa được phơi bày trong bóng tối m�
                             )
 
                         with gr.Row():
+                            b_sync_mode = gr.Dropdown(
+                                label="⚡ Cơ chế Đồng Bộ Phân Cảnh (Subtitle Sync):",
+                                choices=SYNC_MODES,
+                                value=SYNC_MODES[0],
+                                scale=4
+                            )
+                            b_retention_cuts_cb = gr.Checkbox(
+                                label="🎯 Quy tắc 2 phút (Retention Cuts)",
+                                value=True,
+                                scale=2
+                            )
+                            b_num_scenes_slider = gr.Slider(
+                                minimum=4,
+                                maximum=120,
+                                value=12,
+                                step=1,
+                                label="🎛️ Số cảnh (Thủ công):",
+                                scale=2
+                            )
+                            b_allow_reuse_cb = gr.Checkbox(
+                                label="♻️ Tiết kiệm GPU",
+                                value=False,
+                                scale=2
+                            )
+
+                        with gr.Accordion("📚 CẤU HÌNH REVIEW & BÁN SÁCH (ĐẶT SÁCH 3D TRÊN BÀN CAFE / BÀN TRÀ)", open=False):
+                            with gr.Row():
+                                b_book_cover_input = gr.Image(
+                                    type="filepath",
+                                    label="📕 Tải Lên Ảnh Bìa Cuốn Sách (Tùy chọn):",
+                                    height=170,
+                                    scale=4
+                                )
+                                b_book_cover_mode = gr.Dropdown(
+                                    label="☕ Chế độ hiển thị Sách 3D trong Video:",
+                                    choices=[
+                                        "☕ Xen kẽ cảnh Sách trên bàn Cafe/Trà + Cảnh minh họa nội dung",
+                                        "📖 100% Cảnh Sách trên nhiều bàn Cafe / Bàn Trà / Bàn Đọc Sách",
+                                        "🎬 Chỉ dùng cho Intro/Outro & Thumbnail",
+                                        "🚫 Không hiển thị trong video (Chỉ dùng làm Thumbnail)"
+                                    ],
+                                    value="☕ Xen kẽ cảnh Sách trên bàn Cafe/Trà + Cảnh minh họa nội dung",
+                                    scale=6
+                                )
+
+                        with gr.Row():
                             b_voice = gr.Dropdown(
                                 label="Giọng đọc VieNeu:",
                                 choices=VOICE_OPTIONS,
                                 value=VOICE_OPTIONS[0],
                                 scale=3
+                            )
+                            b_voice_speed_slider = gr.Slider(
+                                minimum=0.75,
+                                maximum=1.50,
+                                value=1.0,
+                                step=0.05,
+                                label="⏱️ Tốc độ đọc:",
+                                scale=2
                             )
                             b_btn_preview_voice = gr.Button("🎧 Nghe thử giọng", scale=1)
                             b_check_published = gr.Checkbox(
@@ -496,11 +578,62 @@ Một bí mật kinh hoàng sắp sửa được phơi bày trong bóng tối m�
                                 scale=2
                             )
 
+                        with gr.Row():
+                            b_title_style = gr.Dropdown(
+                                label="🎨 Kiểu dáng Tiêu đề trên video:",
+                                choices=TITLE_STYLES,
+                                value=TITLE_STYLES[0],
+                                scale=3
+                            )
+                            b_title_size = gr.Slider(minimum=20, maximum=100, value=60, step=2, label="🔠 Cỡ chữ Tiêu đề:", scale=2)
+
                         b_preview_voice_audio = gr.Audio(label="Nghe thử giọng (Batch):", type="filepath", interactive=False)
 
+                        with gr.Accordion("🌊 CÀI ĐẶT SÓNG NHẠC (VISUALIZER), NHẠC NỀN BGM & PHỤ ĐỀ (BATCH)", open=False):
+                            with gr.Row():
+                                b_waveform = gr.Dropdown(
+                                    label="🌊 Kiểu Sóng Nhạc:",
+                                    choices=WAVEFORM_CHOICES,
+                                    value=WAVEFORM_CHOICES[0],
+                                    scale=3
+                                )
+                                b_bgm_vol = gr.Slider(minimum=0.02, maximum=0.35, value=0.10, step=0.01, label="Âm lượng BGM:", scale=2)
+
+                            with gr.Row():
+                                b_bgm_upload = gr.Audio(label="Tải lên file nhạc BGM (MP3/WAV):", type="filepath", scale=2)
+                                b_bgm_gdrive = gr.Textbox(
+                                    label="Hoặc dán Link Nhạc từ Google Drive:",
+                                    placeholder="https://drive.google.com/file/d/.../view?usp=sharing",
+                                    lines=1,
+                                    scale=2
+                                )
+
+                            with gr.Row():
+                                b_add_subtitles = gr.Checkbox(label="📝 Bật Phụ đề tự động (Whisper Safe Zone)", value=True, scale=2)
+                                b_sub_color = gr.Dropdown(
+                                    label="Màu sắc phụ đề:",
+                                    choices=SUB_COLORS,
+                                    value=SUB_COLORS[0],
+                                    scale=2
+                                )
+                                b_sub_size = gr.Slider(
+                                    minimum=14,
+                                    maximum=40,
+                                    value=18,
+                                    step=1,
+                                    label="🔤 Cỡ chữ Phụ đề (Mặc định 18):",
+                                    scale=2
+                                )
+
                         with gr.Row():
-                            b_editor_email = gr.Textbox(label="Email người làm (Báo cáo CSV):", scale=3)
-                            b_shared_drive = gr.Textbox(label="Thư mục Drive dùng chung:", value="/content/drive/MyDrive/BAO CAO CONG VIEC", scale=3)
+                            b_yt_privacy = gr.Dropdown(
+                                label="Chế độ riêng tư YouTube:",
+                                choices=["Riêng tư / Hẹn giờ (private)", "Công khai (public)", "Không công khai (unlisted)"],
+                                value="Riêng tư / Hẹn giờ (private)",
+                                scale=2
+                            )
+                            b_editor_email = gr.Textbox(label="Email người làm (Báo cáo CSV):", scale=2)
+                            b_shared_drive = gr.Textbox(label="Thư mục Drive dùng chung:", value="/content/drive/MyDrive/BAO CAO CONG VIEC", scale=2)
 
                         with gr.Row():
                             batch_run_btn = gr.Button("🚀 BẮT ĐẦU CHẠY BATCH (CHỈ TẠO)", variant="secondary", size="lg")
@@ -608,13 +741,13 @@ Một bí mật kinh hoàng sắp sửa được phơi bày trong bóng tối m�
 
         # Nghe thử giọng VieNeu
         btn_preview_voice.click(
-            fn=lambda v: preview_voice_sample(v, temp_dir=temp_dir),
-            inputs=[voice_dropdown],
+            fn=lambda v, spd: preview_voice_sample(v, temp_dir=temp_dir, speed=spd),
+            inputs=[voice_dropdown, voice_speed_slider],
             outputs=[preview_voice_audio]
         )
         b_btn_preview_voice.click(
-            fn=lambda v: preview_voice_sample(v, temp_dir=temp_dir),
-            inputs=[b_voice],
+            fn=lambda v, spd: preview_voice_sample(v, temp_dir=temp_dir, speed=spd),
+            inputs=[b_voice, b_voice_speed_slider],
             outputs=[b_preview_voice_audio]
         )
 
@@ -678,7 +811,10 @@ Một bí mật kinh hoàng sắp sửa được phơi bày trong bóng tối m�
                 custom_yt_tags="",
                 custom_yt_desc="",
                 temp_dir=temp_dir,
-                outputs_dir=outputs_dir
+                outputs_dir=outputs_dir,
+                voice_speed=args[26],
+                book_cover_path=args[27],
+                book_cover_mode=args[28]
             )
 
         # Tab 1: Tạo video và tự động đăng YouTube
@@ -714,7 +850,10 @@ Một bí mật kinh hoàng sắp sửa được phơi bày trong bóng tối m�
                 custom_yt_tags="",
                 custom_yt_desc="",
                 temp_dir=temp_dir,
-                outputs_dir=outputs_dir
+                outputs_dir=outputs_dir,
+                voice_speed=args[26],
+                book_cover_path=args[27],
+                book_cover_mode=args[28]
             )
 
         tab1_inputs = [
@@ -723,7 +862,8 @@ Một bí mật kinh hoàng sắp sửa được phơi bày trong bóng tối m�
             voice_dropdown, title_top_box, title_size_slider, title_style_dropdown,
             bgm_upload, bgm_gdrive_box, bgm_vol_slider, add_subtitles_cb, sub_color_dropdown,
             waveform_dropdown, retention_cuts_cb, sub_size_slider, yt_privacy_t1,
-            editor_email_t1, shared_drive_folder_t1, channel_profile_dropdown, visual_concept_box
+            editor_email_t1, shared_drive_folder_t1, channel_profile_dropdown, visual_concept_box,
+            voice_speed_slider, book_cover_input, book_cover_mode
         ]
 
         generate_btn.click(
@@ -746,39 +886,54 @@ Một bí mật kinh hoàng sắp sửa được phơi bày trong bóng tối m�
                 aspect_ratio=args[2],
                 visual_mode=args[3],
                 sync_mode_choice=args[4],
-                num_scenes_slider=12,
-                pexels_key_input=args[5],
-                gemini_api_key_input=args[6],
-                gemini_model_input=args[7],
-                allow_reuse_input=False,
-                voice_selected=args[8],
-                editor_email=args[9],
-                shared_drive_folder=args[10],
-                channel_profile=args[11],
-                custom_visual_concept=args[12],
-                check_published_first=args[13],
-                auto_upload_yt=args[14],
+                num_scenes_slider=args[5],
+                pexels_key_input=args[6],
+                gemini_api_key_input=args[7],
+                gemini_model_input=args[8],
+                allow_reuse_input=args[9],
+                voice_selected=args[10],
+                title_font_size=args[11],
+                title_style=args[12],
+                bgm_file=args[13],
+                bgm_gdrive_url=args[14],
+                bgm_volume=args[15],
+                add_subtitles=args[16],
+                sub_color=args[17],
+                waveform_style=args[18],
+                retention_cuts_enabled=args[19],
+                sub_font_size=args[20],
+                yt_privacy=args[21],
+                editor_email=args[22],
+                shared_drive_folder=args[23],
+                channel_profile=args[24],
+                custom_visual_concept=args[25],
+                check_published_first=args[26],
+                voice_speed=args[27],
+                book_cover_path=args[28],
+                book_cover_mode=args[29],
+                auto_upload_yt=args[30],
                 temp_dir=temp_dir,
                 outputs_dir=outputs_dir
             )
 
+        tab2_inputs = [
+            batch_files_upload, batch_folder_input, b_aspect_ratio, b_visual_mode, b_sync_mode,
+            b_num_scenes_slider, pexels_key_box, gemini_key_box, gemini_model_dropdown, b_allow_reuse_cb,
+            b_voice, b_title_size, b_title_style, b_bgm_upload, b_bgm_gdrive,
+            b_bgm_vol, b_add_subtitles, b_sub_color, b_waveform, b_retention_cuts_cb,
+            b_sub_size, b_yt_privacy, b_editor_email, b_shared_drive, b_channel_profile,
+            b_visual_concept_box, b_check_published, b_voice_speed_slider, b_book_cover_input, b_book_cover_mode
+        ]
+
         batch_run_btn.click(
             fn=lambda *a: handle_tab2_batch(*a, False),
-            inputs=[
-                batch_files_upload, batch_folder_input, b_aspect_ratio, b_visual_mode, sync_mode_dropdown,
-                pexels_key_box, gemini_key_box, gemini_model_dropdown, b_voice,
-                b_editor_email, b_shared_drive, b_channel_profile, b_visual_concept_box, b_check_published
-            ],
+            inputs=tab2_inputs,
             outputs=[batch_status_box]
         )
 
         batch_run_and_upload_btn.click(
             fn=lambda *a: handle_tab2_batch(*a, True),
-            inputs=[
-                batch_files_upload, batch_folder_input, b_aspect_ratio, b_visual_mode, sync_mode_dropdown,
-                pexels_key_box, gemini_key_box, gemini_model_dropdown, b_voice,
-                b_editor_email, b_shared_drive, b_channel_profile, b_visual_concept_box, b_check_published
-            ],
+            inputs=tab2_inputs,
             outputs=[batch_status_box]
         )
 

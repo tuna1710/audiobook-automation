@@ -219,7 +219,7 @@ def build_subtitle_retention_cuts(segments, total_dur: float, auto_sync_mode: bo
 build_retention_cuts = build_subtitle_retention_cuts
 
 
-def extract_whisper_segments_and_srt(audio_path: str, speech_text: str, srt_path: str, gemini_api_key: str = "", gemini_model: str = "gemini-3.5-flash-lite", whisper_model=None):
+def extract_whisper_segments_and_srt(audio_path: str, speech_text: str, srt_path: str, gemini_api_key: str = "", gemini_model: str = "gemini-4-hydrogen", whisper_model=None):
     """
     Quét phụ đề tự động bằng Whisper và căn chỉnh khớp 100% với kịch bản gốc.
     """

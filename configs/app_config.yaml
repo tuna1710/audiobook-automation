@@ -1,8 +1,8 @@
 app:
   name: "Nỗi Sợ AudioBook - Hệ Thống Dựng Video Trinh Thám & Kinh Dị Gothic"
   version: "20.0.0"
-  engine: "Cinema Gothic V20 - Subtitle-Locked Scene Sync & All-in-One Gemini 3.8 Flash"
-  description: "Automated Cinematic Audiobook, Gothic Horror & Detective Video Production System"
+  engine: "Cinema Gothic V20 - Subtitle-Locked Scene Sync & All-in-One Gemini 4 Hydrogen"
+  description: "Automated Cinematic Audiobook, Book Review & Video Production System"
 
 hardware:
   device: "cuda"
@@ -16,15 +16,13 @@ paths:
   default_font: "fonts/BeVietnamPro-Bold.ttf"
 
 ai_director:
-  default_model: "gemini-3.5-flash-lite"
+  default_model: "gemini-4-hydrogen"
   supported_models:
+    - "gemini-4-hydrogen"
     - "gemini-3.5-flash-lite"
     - "gemini-3.8-flash"
-    - "gemini-3.5-flash"
-    - "gemini-3.1-flash-lite"
-    - "gemini-3.7-flash"
     - "gemini-3.6-flash"
-    - "gemini-3-flash-preview"
+    - "gemini-3.1-flash-lite"
   chunk_size: 45
   exponential_backoff:
     max_retries: 3
